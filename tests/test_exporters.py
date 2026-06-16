@@ -15,6 +15,7 @@ from archive_voice.exporters import (
     split_reading_units,
     style_uses_timestamps,
     transcript_base_path,
+    unique_output_path,
 )
 
 
@@ -64,6 +65,15 @@ def test_style_filename_suffixes(tmp_path) -> None:
     assert research.name == "Interview 01_research_transcript"
     assert clean.name == "Interview 01_clean_transcript"
     assert reading.name == "Interview 01_reading_transcript"
+
+
+def test_unique_output_path_adds_counter(tmp_path) -> None:
+    existing = tmp_path / "Interview_01_reading_transcript.txt"
+    existing.write_text("previous transcript", encoding="utf-8")
+
+    path = unique_output_path(existing)
+
+    assert path.name == "Interview_01_reading_transcript_2.txt"
 
 
 def test_style_timestamp_defaults() -> None:
@@ -125,6 +135,18 @@ def test_export_txt_writes_utf8(tmp_path) -> None:
     assert "Lodz, Warszawa, Krakow." in output_path.read_text(encoding="utf-8")
 
 
+def test_export_txt_does_not_overwrite_existing_file(tmp_path) -> None:
+    result = empty_result_for_tests("Polish.mp3")
+    output_path = tmp_path / "Polish_transcript.txt"
+    output_path.write_text("previous transcript", encoding="utf-8")
+
+    created = export_txt(result, output_path, "Research Transcript", include_timestamps=True)
+
+    assert created.name == "Polish_transcript_2.txt"
+    assert output_path.read_text(encoding="utf-8") == "previous transcript"
+    assert "Interview: Polish.mp3" in created.read_text(encoding="utf-8")
+
+
 def test_export_json_sidecar(tmp_path) -> None:
     result = empty_result_for_tests()
     output_path = tmp_path / "Interview_01_transcript.json"
@@ -135,6 +157,17 @@ def test_export_json_sidecar(tmp_path) -> None:
     assert data["source_file"] == "Interview_01.mp3"
     assert data["detected_language"] == "en"
     assert data["segments"][0]["text"] == "My name is Anna."
+
+
+def test_export_json_does_not_overwrite_existing_file(tmp_path) -> None:
+    result = empty_result_for_tests()
+    output_path = tmp_path / "Interview_01_transcript.json"
+    output_path.write_text('{"previous": true}', encoding="utf-8")
+
+    created = export_json(result, output_path)
+
+    assert created.name == "Interview_01_transcript_2.json"
+    assert json.loads(output_path.read_text(encoding="utf-8")) == {"previous": True}
 
 
 def test_export_all_writes_multiple_styles(tmp_path) -> None:

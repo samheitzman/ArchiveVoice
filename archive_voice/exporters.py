@@ -96,6 +96,16 @@ def transcript_base_path(audio_path: Path, output_dir: Path, style: str) -> Path
     return output_dir / f"{audio_path.stem}_{suffix}"
 
 
+def unique_output_path(path: Path) -> Path:
+    if not path.exists():
+        return path
+    for index in range(2, 10_000):
+        candidate = path.with_name(f"{path.stem}_{index}{path.suffix}")
+        if not candidate.exists():
+            return candidate
+    raise RuntimeError(f"Could not create a unique output filename for {path.name}.")
+
+
 def render_transcript_text(result: TranscriptResult, style: str, include_timestamps: bool) -> str:
     metadata = result.metadata
     lines: list[str] = []
@@ -229,11 +239,13 @@ def merge_language(current_language: str | None, next_language: str | None) -> s
 
 
 def export_txt(result: TranscriptResult, path: Path, style: str, include_timestamps: bool) -> Path:
+    path = unique_output_path(path)
     path.write_text(render_transcript_text(result, style, include_timestamps), encoding="utf-8")
     return path
 
 
 def export_docx(result: TranscriptResult, path: Path, style: str, include_timestamps: bool) -> Path:
+    path = unique_output_path(path)
     try:
         from docx import Document
         from docx.enum.text import WD_BREAK
@@ -300,6 +312,7 @@ def export_docx(result: TranscriptResult, path: Path, style: str, include_timest
 
 
 def export_json(result: TranscriptResult, path: Path) -> Path:
+    path = unique_output_path(path)
     metadata = result.metadata
     payload = {
         "source_file": metadata.source_file,
