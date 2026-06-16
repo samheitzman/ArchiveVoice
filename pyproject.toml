@@ -1,6 +1,6 @@
 [project]
 name = "archive-voice"
-version = "0.1.0"
+version = "0.2.0"
 description = "Local desktop transcription for oral history, journalism and historical interviews."
 readme = "README.md"
 requires-python = ">=3.11"
