@@ -1,0 +1,37 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+.venv-build/
+venv/
+dist/
+build/
+*.egg-info/
+.DS_Store
+
+# Local packaging payloads are too large for normal Git history.
+packaging/assets/bin/ffmpeg
+packaging/assets/bin/ffprobe
+packaging/assets/bin/ffmpeg.exe
+packaging/assets/bin/ffprobe.exe
+packaging/assets/models/*/
+!packaging/assets/models/README.md
+
+# Generated transcript artifacts
+*_transcript.txt
+*_transcript.docx
+*_transcript.json
+*_transcript_timestamped.txt
+*_transcript_timestamped.docx
+*_transcript_timestamped.json
+*_translation_en.txt
+*_translation_en.docx
+*_research_transcript.txt
+*_research_transcript.docx
+*_timestamped_transcript.txt
+*_timestamped_transcript.docx
+*_clean_transcript.txt
+*_clean_transcript.docx
+*_reading_transcript.txt
+*_reading_transcript.docx
+*_transcript_segments.json
