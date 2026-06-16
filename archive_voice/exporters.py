@@ -109,7 +109,9 @@ def style_uses_timestamps(style: str, include_timestamps: bool) -> bool:
     return include_timestamps
 
 
-def transcript_base_path(audio_path: Path, output_dir: Path, style: str) -> Path:
+def transcript_base_path(audio_path: Path, output_dir: Path, style: str, use_style_suffix: bool = True) -> Path:
+    if not use_style_suffix:
+        return output_dir / audio_path.stem
     suffix = style_slug(style)
     return output_dir / f"{audio_path.stem}_{suffix}"
 
@@ -514,8 +516,9 @@ def export_all(
     write_json_sidecar: bool,
 ) -> list[Path]:
     created: list[Path] = []
+    use_style_suffix = len(styles) > 1
     for style in styles:
-        base_path = transcript_base_path(audio_path, output_dir, style)
+        base_path = transcript_base_path(audio_path, output_dir, style, use_style_suffix=use_style_suffix)
         timestamps_for_style = style_uses_timestamps(style, include_timestamps)
         if write_txt:
             created.append(export_txt(result, base_path.with_suffix(".txt"), style, timestamps_for_style))

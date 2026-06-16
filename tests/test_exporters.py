@@ -78,10 +78,17 @@ def test_style_filename_suffixes(tmp_path) -> None:
     research = transcript_base_path(tmp_path / "Interview 01.mp3", tmp_path, "Research Transcript")
     clean = transcript_base_path(tmp_path / "Interview 01.mp3", tmp_path, "Clean Transcript")
     reading = transcript_base_path(tmp_path / "Interview 01.mp3", tmp_path, "Reading Transcript")
+    single_style = transcript_base_path(
+        tmp_path / "Interview 01.mp3",
+        tmp_path,
+        "Reading Transcript",
+        use_style_suffix=False,
+    )
 
     assert research.name == "Interview 01_research_transcript"
     assert clean.name == "Interview 01_clean_transcript"
     assert reading.name == "Interview 01_reading_transcript"
+    assert single_style.name == "Interview 01"
 
 
 def test_unique_output_path_adds_counter(tmp_path) -> None:
@@ -240,6 +247,24 @@ def test_export_all_writes_multiple_styles(tmp_path) -> None:
         "Interview_01_research_transcript.txt",
         "Interview_01_transcript_segments.json",
     ]
+
+
+def test_export_all_single_style_matches_audio_filename(tmp_path) -> None:
+    result = empty_result_for_tests("Interview_01.mp3")
+
+    created = export_all(
+        result,
+        audio_path=tmp_path / "Interview_01.mp3",
+        output_dir=tmp_path,
+        styles=["Reading Transcript"],
+        include_timestamps=False,
+        write_txt=True,
+        write_docx=False,
+        write_json_sidecar=False,
+    )
+
+    assert [path.name for path in created] == ["Interview_01.txt"]
+    assert "My name is Anna." in created[0].read_text(encoding="utf-8")
 
 
 def test_export_translation_all_uses_separate_filename_and_no_overwrite(tmp_path) -> None:
