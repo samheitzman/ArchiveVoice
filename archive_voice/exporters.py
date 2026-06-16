@@ -59,6 +59,24 @@ ENGLISH_MARKERS = {
     "when",
 }
 POLISH_CHARACTERS = set("ąćęłńóśźżĄĆĘŁŃÓŚŹŻ")
+BREAK_AFTER_PHRASES = (
+    "dobra, przetłumaczymy",
+    "dobra, babcia",
+    "dobra babcia",
+    "przetłumaczymy",
+    "przetłumacz mi",
+    "do you have any questions",
+    "ok, ok",
+)
+BREAK_BEFORE_PHRASES = (
+    "a jak pani",
+    "ale pamięta pani",
+    "jak był",
+    "jak się",
+    "when she",
+    "and she",
+    "she said",
+)
 
 
 def format_timestamp(seconds: float) -> str:
@@ -144,8 +162,8 @@ def render_transcript_text(result: TranscriptResult, style: str, include_timesta
 
 def render_reading_paragraphs(
     segments: list[TranscriptSegment],
-    pause_break_seconds: float = 1.6,
-    max_paragraph_chars: int = 650,
+    pause_break_seconds: float = 1.1,
+    max_paragraph_chars: int = 420,
     label_languages: bool = True,
 ) -> list[str]:
     paragraphs: list[str] = []
@@ -169,6 +187,8 @@ def render_reading_paragraphs(
             should_break = bool(current_parts) and (
                 gap >= pause_break_seconds
                 or language_changed(current_language, language)
+                or should_start_new_reading_paragraph(text)
+                or should_end_reading_paragraph(current_parts[-1])
                 or current_length + len(text) > max_paragraph_chars
             )
             if should_break:
@@ -191,8 +211,54 @@ def split_reading_units(text: str) -> list[str]:
     stripped = text.strip()
     if not stripped:
         return []
-    units = re.split(r"(?<=[.!?])\s+(?=[A-ZĄĆĘŁŃÓŚŹŻ])", stripped)
+    sentence_units = re.split(r"(?<=[.!?])\s+(?=[A-ZĄĆĘŁŃÓŚŹŻ])", stripped)
+    units: list[str] = []
+    for sentence in sentence_units:
+        units.extend(split_on_reading_cues(sentence))
     return [unit.strip() for unit in units if unit.strip()]
+
+
+def split_on_reading_cues(text: str) -> list[str]:
+    units = [text.strip()]
+    for phrase in BREAK_AFTER_PHRASES:
+        units = split_after_phrase(units, phrase)
+    for phrase in BREAK_BEFORE_PHRASES:
+        units = split_before_phrase(units, phrase)
+    return units
+
+
+def split_after_phrase(units: list[str], phrase: str) -> list[str]:
+    result: list[str] = []
+    pattern = re.compile(rf"(.+?\b{re.escape(phrase)}\b[.!?]?)\s+(.+)", re.IGNORECASE)
+    for unit in units:
+        match = pattern.match(unit)
+        if match:
+            result.extend([match.group(1).strip(), match.group(2).strip()])
+        else:
+            result.append(unit)
+    return result
+
+
+def split_before_phrase(units: list[str], phrase: str) -> list[str]:
+    result: list[str] = []
+    pattern = re.compile(rf"(.+?)\s+(\b{re.escape(phrase)}\b.+)", re.IGNORECASE)
+    for unit in units:
+        match = pattern.match(unit)
+        if match:
+            result.extend([match.group(1).strip(), match.group(2).strip()])
+        else:
+            result.append(unit)
+    return result
+
+
+def should_start_new_reading_paragraph(text: str) -> bool:
+    lowered = text.lower()
+    return lowered.endswith("?") or any(lowered.startswith(phrase) for phrase in BREAK_BEFORE_PHRASES)
+
+
+def should_end_reading_paragraph(text: str) -> bool:
+    lowered = text.lower()
+    return lowered.endswith("?") or any(phrase in lowered for phrase in BREAK_AFTER_PHRASES)
 
 
 def append_reading_paragraph(

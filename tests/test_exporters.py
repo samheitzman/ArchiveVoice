@@ -120,6 +120,38 @@ def test_split_reading_units() -> None:
     assert units == ["Czekaj, babcia.", "Do you have any questions?", "A jak pani tutaj była?"]
 
 
+def test_split_reading_units_uses_interview_cues() -> None:
+    units = split_reading_units(
+        "Te ręce były chude, aż sine i czarne. Dobra babcia, przetłumaczymy. "
+        "She said that she was always scared and they hid."
+    )
+
+    assert units == [
+        "Te ręce były chude, aż sine i czarne.",
+        "Dobra babcia, przetłumaczymy.",
+        "She said that she was always scared and they hid.",
+    ]
+
+
+def test_reading_paragraphs_break_on_questions() -> None:
+    result = empty_result_for_tests()
+    result.segments[0].text = "Czy pani pamięta tych ludzi? Tak, pamiętam. Oni mieli czarne mundury."
+    result.segments[1].text = "Do you have any questions? She starts to say the same thing over."
+
+    paragraphs = render_reading_paragraphs(result.segments)
+
+    assert paragraphs == [
+        "[Polish] Czy pani pamięta tych ludzi?",
+        "",
+        "[Polish] Tak, pamiętam. Oni mieli czarne mundury.",
+        "",
+        "[English] Do you have any questions?",
+        "",
+        "[English] She starts to say the same thing over.",
+        "",
+    ]
+
+
 def test_detect_segment_language() -> None:
     assert detect_segment_language("A jak pani tutaj była, czy pani widziała więźniów?") == "Polish"
     assert detect_segment_language("Do you have any questions?") == "English"
