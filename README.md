@@ -34,6 +34,9 @@ Run the app:
 python -m archive_voice
 ```
 
+On macOS, you can also double-click `Run Archive Voice.command` after the local `.venv` has been created.
+On Windows, double-click `Run Archive Voice.cmd` from the project folder.
+
 ## Building a Clickable App
 
 For a non-technical user, do not ask them to install Python packages. Build a packaged app instead.
