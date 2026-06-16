@@ -5,7 +5,7 @@ import re
 from datetime import datetime
 from pathlib import Path
 
-from .constants import QUALITY_WARNING
+from .constants import QUALITY_WARNING, TRANSLATION_WARNING
 from .models import TranscriptResult, TranscriptSegment
 
 
@@ -114,6 +114,10 @@ def transcript_base_path(audio_path: Path, output_dir: Path, style: str) -> Path
     return output_dir / f"{audio_path.stem}_{suffix}"
 
 
+def translation_base_path(audio_path: Path, output_dir: Path) -> Path:
+    return output_dir / f"{audio_path.stem}_english_translation"
+
+
 def unique_output_path(path: Path) -> Path:
     if not path.exists():
         return path
@@ -157,6 +161,38 @@ def render_transcript_text(result: TranscriptResult, style: str, include_timesta
                 lines.append(f"[{format_timestamp(segment.start)}] {segment.text}")
 
     lines.extend(["", "Notes:", f"- {QUALITY_WARNING}"])
+    return "\n".join(lines).strip() + "\n"
+
+
+def render_translation_text(result: TranscriptResult, include_timestamps: bool) -> str:
+    metadata = result.metadata
+    lines = [
+        "MACHINE ENGLISH TRANSLATION",
+        "This file is a machine-generated English translation.",
+        "It is not an original-language transcript and not an English-language transcription.",
+        "",
+        f"Interview: {metadata.source_file}",
+        f"Source path: {metadata.source_path}",
+        f"Translated: {metadata.transcribed_at.isoformat(timespec='seconds')}",
+        f"Model: {metadata.model}",
+        f"Language mode: {metadata.language_mode}",
+        f"Detected source language: {metadata.detected_language or 'Not available'}",
+        f"Output mode: {metadata.output_mode}",
+        f"Duration: {format_duration(metadata.duration_seconds)}",
+        "",
+        "English translation:",
+        "",
+    ]
+
+    for segment in result.segments:
+        if include_timestamps:
+            lines.append(f"[{format_timestamp(segment.start)} - {format_timestamp(segment.end)}]")
+            lines.append(segment.text)
+            lines.append("")
+        else:
+            lines.append(segment.text)
+
+    lines.extend(["", "Notes:", f"- {TRANSLATION_WARNING}"])
     return "\n".join(lines).strip() + "\n"
 
 
@@ -377,6 +413,73 @@ def export_docx(result: TranscriptResult, path: Path, style: str, include_timest
     return path
 
 
+def export_translation_txt(result: TranscriptResult, path: Path, include_timestamps: bool) -> Path:
+    path = unique_output_path(path)
+    path.write_text(render_translation_text(result, include_timestamps), encoding="utf-8")
+    return path
+
+
+def export_translation_docx(result: TranscriptResult, path: Path, include_timestamps: bool) -> Path:
+    path = unique_output_path(path)
+    try:
+        from docx import Document
+        from docx.enum.text import WD_BREAK
+        from docx.shared import Inches
+    except ImportError as exc:
+        raise RuntimeError(
+            "python-docx is not installed. Install the app requirements to export DOCX files."
+        ) from exc
+
+    document = Document()
+    section = document.sections[0]
+    section.top_margin = Inches(0.8)
+    section.bottom_margin = Inches(0.8)
+    section.left_margin = Inches(0.8)
+    section.right_margin = Inches(0.8)
+
+    metadata = result.metadata
+    document.add_heading(f"English Translation - {metadata.source_file}", level=1)
+    document.add_paragraph("MACHINE ENGLISH TRANSLATION")
+    document.add_paragraph(
+        "This file is a machine-generated English translation. It is not an "
+        "original-language transcript and not an English-language transcription."
+    )
+
+    table = document.add_table(rows=0, cols=2)
+    table.style = "Table Grid"
+    rows = [
+        ("Source audio file", metadata.source_file),
+        ("Original file path", metadata.source_path),
+        ("Date/time translated", metadata.transcribed_at.isoformat(timespec="seconds")),
+        ("Model used", metadata.model),
+        ("Language mode", metadata.language_mode),
+        ("Detected source language", metadata.detected_language or "Not available"),
+        ("Output mode", metadata.output_mode),
+        ("Duration", format_duration(metadata.duration_seconds)),
+    ]
+    for label, value in rows:
+        cells = table.add_row().cells
+        cells[0].text = label
+        cells[1].text = value
+
+    document.add_paragraph()
+    document.add_heading("English translation", level=2)
+    for segment in result.segments:
+        if include_timestamps:
+            stamp = f"[{format_timestamp(segment.start)} - {format_timestamp(segment.end)}]"
+            document.add_paragraph(stamp, style=None)
+        document.add_paragraph(segment.text)
+
+    document.add_paragraph()
+    document.add_heading("Notes", level=2)
+    paragraph = document.add_paragraph(TRANSLATION_WARNING)
+    paragraph.runs[-1].add_break(WD_BREAK.LINE)
+    document.add_paragraph("Names, dates, places and unclear passages require human verification.", style=None)
+
+    document.save(path)
+    return path
+
+
 def export_json(result: TranscriptResult, path: Path) -> Path:
     path = unique_output_path(path)
     metadata = result.metadata
@@ -421,6 +524,23 @@ def export_all(
     if write_json_sidecar:
         base_path = output_dir / f"{audio_path.stem}_transcript_segments"
         created.append(export_json(result, base_path.with_suffix(".json")))
+    return created
+
+
+def export_translation_all(
+    result: TranscriptResult,
+    audio_path: Path,
+    output_dir: Path,
+    include_timestamps: bool,
+    write_txt: bool,
+    write_docx: bool,
+) -> list[Path]:
+    created: list[Path] = []
+    base_path = translation_base_path(audio_path, output_dir)
+    if write_txt:
+        created.append(export_translation_txt(result, base_path.with_suffix(".txt"), include_timestamps))
+    if write_docx:
+        created.append(export_translation_docx(result, base_path.with_suffix(".docx"), include_timestamps))
     return created
 
 

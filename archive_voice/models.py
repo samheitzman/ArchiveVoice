@@ -48,4 +48,5 @@ class TranscriptionSettings:
     initial_prompt: str = ""
     keep_filler_words: bool = True
     segment_length_preference: str = "Model default"
+    create_english_translation: bool = False
     created_paths: list[Path] = field(default_factory=list)

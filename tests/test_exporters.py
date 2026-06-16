@@ -2,15 +2,17 @@ from __future__ import annotations
 
 import json
 
-from archive_voice.constants import QUALITY_WARNING
+from archive_voice.constants import QUALITY_WARNING, TRANSLATION_WARNING
 from archive_voice.exporters import (
     empty_result_for_tests,
     export_all,
+    export_translation_all,
     export_json,
     export_txt,
     format_timestamp,
     detect_segment_language,
     render_transcript_text,
+    render_translation_text,
     render_reading_paragraphs,
     split_reading_units,
     style_uses_timestamps,
@@ -45,6 +47,21 @@ def test_clean_transcript_omits_segment_timestamps() -> None:
     assert "[00:00:00" not in text
     assert "My name is Anna." in text
     assert QUALITY_WARNING in text
+
+
+def test_translation_output_is_clearly_labeled() -> None:
+    result = empty_result_for_tests("Polish.mp3")
+    result.metadata.output_mode = "Machine English translation, not English-language transcription"
+    result.segments[0].text = "Wait, Grandma."
+
+    text = render_translation_text(result, include_timestamps=True)
+
+    assert text.startswith("MACHINE ENGLISH TRANSLATION")
+    assert "not an original-language transcript" in text
+    assert "not an English-language transcription" in text
+    assert "Output mode: Machine English translation, not English-language transcription" in text
+    assert "[00:00:00 - 00:00:12]" in text
+    assert TRANSLATION_WARNING in text
 
 
 def test_reading_transcript_uses_paragraphs_without_timestamps() -> None:
@@ -223,3 +240,22 @@ def test_export_all_writes_multiple_styles(tmp_path) -> None:
         "Interview_01_research_transcript.txt",
         "Interview_01_transcript_segments.json",
     ]
+
+
+def test_export_translation_all_uses_separate_filename_and_no_overwrite(tmp_path) -> None:
+    result = empty_result_for_tests("Interview_01.mp3")
+    existing = tmp_path / "Interview_01_english_translation.txt"
+    existing.write_text("previous translation", encoding="utf-8")
+
+    created = export_translation_all(
+        result,
+        audio_path=tmp_path / "Interview_01.mp3",
+        output_dir=tmp_path,
+        include_timestamps=True,
+        write_txt=True,
+        write_docx=False,
+    )
+
+    assert [path.name for path in created] == ["Interview_01_english_translation_2.txt"]
+    assert existing.read_text(encoding="utf-8") == "previous translation"
+    assert "MACHINE ENGLISH TRANSLATION" in created[0].read_text(encoding="utf-8")

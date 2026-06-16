@@ -9,8 +9,9 @@ It uses `faster-whisper` locally. Audio is not uploaded to cloud transcription s
 - Batch transcription for MP3 files, with optional WAV, M4A, AAC and FLAC support
 - Multilingual Whisper models only: `large-v3`, `medium`, and `small`
 - Language modes: Auto-detect, English, Polish, German, Latvian
-- Research, timestamped, and clean transcript styles
+- Research, timestamped, clean, and reading transcript styles
 - TXT and DOCX export
+- Optional machine English translation output, written as separate clearly labeled files
 - Optional JSON sidecar with segment metadata
 - Background processing with cancellation
 - Traceable transcript metadata and journalistic verification warnings
@@ -55,3 +56,7 @@ The app does not upload audio or call cloud transcription APIs. The first use of
 Every transcript includes:
 
 > This is a machine-generated transcript. It should be checked against the original recording before quotation, publication or archival use. Names, dates, places and unclear passages require human verification.
+
+Optional English translation files are separate from the transcript and include:
+
+> This is a machine-generated English translation, not an original-language transcript and not an English-language transcription. It should be checked against the original recording and the original-language transcript before quotation, publication or archival use.

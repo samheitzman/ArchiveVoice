@@ -47,6 +47,13 @@ QUALITY_WARNING = (
     "dates, places and unclear passages require human verification."
 )
 
+TRANSLATION_WARNING = (
+    "This is a machine-generated English translation, not an original-language "
+    "transcript and not an English-language transcription. It should be checked "
+    "against the original recording and the original-language transcript before "
+    "quotation, publication or archival use."
+)
+
 DEFAULT_CONTEXT_PROMPT = (
     "This is an oral history interview about war, historical events, personal "
     "memory, displacement, family history, places, dates and names. The speaker "

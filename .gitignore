@@ -27,6 +27,8 @@ packaging/assets/models/*/
 *_transcript_timestamped.json
 *_translation_en.txt
 *_translation_en.docx
+*_english_translation.txt
+*_english_translation.docx
 *_research_transcript.txt
 *_research_transcript.docx
 *_timestamped_transcript.txt

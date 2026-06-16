@@ -8,7 +8,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QObject, Signal, Slot
 
-from .exporters import export_all
+from .exporters import export_all, export_translation_all
 from .models import (
     TranscriptMetadata,
     TranscriptResult,
@@ -165,12 +165,15 @@ class BatchTranscriptionWorker(QObject):
                 segments.append(TranscriptSegment(segment.start, segment.end, text))
             if duration:
                 percent = progress_percent(segment.end, duration)
+                progress_for_bar = percent
+                if self.settings.create_english_translation:
+                    progress_for_bar = phase_file_percent(0, 70, percent)
                 status = (
                     f"Transcribing {format_duration_for_ui(segment.end)} / "
                     f"{format_duration_for_ui(duration)} ({percent}%)"
                 )
                 self.file_progress.emit(row, status, "", "")
-                self.overall_progress.emit(overall_batch_percent(row, len(self.audio_files), percent))
+                self.overall_progress.emit(overall_batch_percent(row, len(self.audio_files), progress_for_bar))
                 if percent >= last_logged_percent + 5 or percent >= 100:
                     self.log_message.emit(status)
                     last_logged_percent = percent
@@ -223,7 +226,92 @@ class BatchTranscriptionWorker(QObject):
         self.settings.created_paths.extend(created)
         for path in created:
             self.log_message.emit(f"Saved: {path}")
+        if self.settings.create_english_translation:
+            translation_created = self._translate_one(row, audio_path, duration)
+            created.extend(translation_created)
+            self.settings.created_paths.extend(translation_created)
+            for path in translation_created:
+                self.log_message.emit(f"Saved: {path}")
         return created
+
+    def _translate_one(self, row: int, audio_path: Path, duration: float | None) -> list[Path]:
+        if self._cancelled:
+            raise CancelledError()
+        self.file_progress.emit(row, "Starting English translation", "", "")
+        self.log_message.emit(
+            "Starting English translation pass. This creates machine translation, "
+            "not an English-language transcription."
+        )
+
+        translation_prompt = (
+            "Translate the speech into English for oral history review. Preserve names, "
+            "places, dates and uncertainty. Do not summarise."
+        )
+        segments_iter, info = self._model.transcribe(
+            str(audio_path),
+            language=self.settings.language_code,
+            task="translate",
+            beam_size=self.settings.beam_size,
+            vad_filter=self.settings.vad_filter,
+            initial_prompt=translation_prompt,
+        )
+
+        segments: list[TranscriptSegment] = []
+        last_logged_percent = -5
+        for segment in segments_iter:
+            if self._cancelled:
+                raise CancelledError()
+            text = segment.text.strip()
+            if text:
+                segments.append(TranscriptSegment(segment.start, segment.end, text))
+            if duration:
+                percent = progress_percent(segment.end, duration)
+                progress_for_bar = phase_file_percent(70, 98, percent)
+                status = (
+                    f"Translating to English {format_duration_for_ui(segment.end)} / "
+                    f"{format_duration_for_ui(duration)} ({percent}%)"
+                )
+                self.file_progress.emit(row, status, "", "")
+                self.overall_progress.emit(overall_batch_percent(row, len(self.audio_files), progress_for_bar))
+                if percent >= last_logged_percent + 5 or percent >= 100:
+                    self.log_message.emit(status)
+                    last_logged_percent = percent
+            else:
+                self.file_progress.emit(row, f"Translating segment {len(segments)}", "", "")
+
+        if not segments:
+            raise RuntimeError("Archive Voice could not create an English translation for this file.")
+
+        detected_language = getattr(info, "language", None)
+        language_probability = getattr(info, "language_probability", None)
+        metadata = TranscriptMetadata(
+            source_file=audio_path.name,
+            source_path=str(audio_path),
+            transcribed_at=datetime.now().astimezone(),
+            model=self.settings.model_size,
+            language_mode=self.settings.language_label,
+            language_code=self.settings.language_code,
+            detected_language=detected_language,
+            detected_language_probability=language_probability,
+            output_mode="Machine English translation, not English-language transcription",
+            duration_seconds=duration,
+        )
+        result = TranscriptResult(metadata=metadata, segments=segments)
+
+        self.file_progress.emit(row, "Writing English translation files", "", "")
+        self.overall_progress.emit(overall_batch_percent(row, len(self.audio_files), 99))
+        if self.settings.write_txt:
+            self.log_message.emit("Writing TXT English translation.")
+        if self.settings.write_docx:
+            self.log_message.emit("Writing DOCX English translation.")
+        return export_translation_all(
+            result,
+            audio_path=audio_path,
+            output_dir=self.settings.output_dir,
+            include_timestamps=self.settings.include_timestamps,
+            write_txt=self.settings.write_txt,
+            write_docx=self.settings.write_docx,
+        )
 
 
 class CancelledError(Exception):
@@ -293,6 +381,12 @@ def progress_percent(current_seconds: float, duration_seconds: float) -> int:
     if duration_seconds <= 0:
         return 0
     return min(100, max(0, int((current_seconds / duration_seconds) * 100)))
+
+
+def phase_file_percent(phase_start: int, phase_end: int, phase_percent: int) -> int:
+    phase_percent = min(100, max(0, phase_percent))
+    span = max(0, phase_end - phase_start)
+    return min(100, max(0, phase_start + int((phase_percent / 100) * span)))
 
 
 def overall_batch_percent(row: int, total_files: int, file_percent: int) -> int:

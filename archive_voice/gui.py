@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from . import __version__
 from .constants import (
     APP_NAME,
     DEFAULT_CONTEXT_PROMPT,
@@ -48,7 +49,7 @@ from .transcriber import BatchTranscriptionWorker
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle(APP_NAME)
+        self.setWindowTitle(f"{APP_NAME} {__version__}")
         self.resize(1180, 760)
         self.audio_files: list[Path] = []
         self.output_dir = Path.home() / "Documents"
@@ -66,15 +67,21 @@ class MainWindow(QMainWindow):
         root.setContentsMargins(24, 20, 24, 20)
         root.setSpacing(14)
 
+        title_row = QHBoxLayout()
         title = QLabel(APP_NAME)
         title.setObjectName("Title")
+        version = QLabel(f"Version {__version__}")
+        version.setObjectName("Version")
+        title_row.addWidget(title)
+        title_row.addWidget(version)
+        title_row.addStretch(1)
         subtitle = QLabel(SUBTITLE)
         subtitle.setObjectName("Subtitle")
         privacy = QLabel(PRIVACY_NOTE)
         privacy.setObjectName("PrivacyNote")
         privacy.setWordWrap(True)
 
-        root.addWidget(title)
+        root.addLayout(title_row)
         root.addWidget(subtitle)
         root.addWidget(privacy)
 
@@ -177,8 +184,10 @@ class MainWindow(QMainWindow):
         self.segment_combo = QComboBox()
         self.segment_combo.addItems(["Model default", "Shorter segments", "Longer segments"])
         self.json_checkbox = QCheckBox("Save JSON sidecar file")
-        self.translation_checkbox = QCheckBox("Also create English translation where possible - Coming later")
-        self.translation_checkbox.setEnabled(False)
+        self.translation_checkbox = QCheckBox("Create English translation output")
+        self.translation_checkbox.setToolTip(
+            "Runs a second local Whisper pass and writes separate files clearly marked as machine English translation."
+        )
 
         advanced_layout.addRow("Initial prompt / context prompt", self.context_prompt)
         advanced_layout.addRow("Beam size", self.beam_spin)
@@ -249,6 +258,14 @@ class MainWindow(QMainWindow):
                 font-size: 30px;
                 font-weight: 700;
                 color: #1d2a2c;
+            }
+            QLabel#Version {
+                background: #ffffff;
+                border: 1px solid #c7c1b2;
+                border-radius: 6px;
+                color: #4e5752;
+                font-size: 12px;
+                padding: 4px 8px;
             }
             QLabel#Subtitle {
                 font-size: 15px;
@@ -419,6 +436,7 @@ class MainWindow(QMainWindow):
             initial_prompt=self.context_prompt.toPlainText().strip(),
             keep_filler_words=self.filler_checkbox.isChecked(),
             segment_length_preference=self.segment_combo.currentText(),
+            create_english_translation=self.translation_checkbox.isChecked(),
         )
 
         for row in range(self.table.rowCount()):
