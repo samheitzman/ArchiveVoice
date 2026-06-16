@@ -8,10 +8,12 @@ datas = [
     ("packaging/assets", "assets"),
 ]
 datas += collect_data_files("faster_whisper")
+datas += collect_data_files("pyannote.audio")
 
 hiddenimports = []
 hiddenimports += collect_submodules("faster_whisper")
 hiddenimports += collect_submodules("ctranslate2")
+hiddenimports += collect_submodules("pyannote")
 
 a = Analysis(
     ["archive_voice/__main__.py"],
@@ -63,4 +65,3 @@ app = BUNDLE(
     icon=None,
     bundle_identifier="local.archivevoice.app",
 )
-

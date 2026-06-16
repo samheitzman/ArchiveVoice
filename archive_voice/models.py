@@ -10,6 +10,14 @@ class TranscriptSegment:
     start: float
     end: float
     text: str
+    speaker_label: str | None = None
+
+
+@dataclass
+class SpeakerTurn:
+    start: float
+    end: float
+    speaker_label: str
 
 
 @dataclass
@@ -49,4 +57,6 @@ class TranscriptionSettings:
     keep_filler_words: bool = True
     segment_length_preference: str = "Model default"
     create_english_translation: bool = False
+    identify_speakers: bool = False
+    speaker_count_label: str = "Auto"
     created_paths: list[Path] = field(default_factory=list)

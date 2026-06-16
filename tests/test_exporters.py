@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import json
 
-from archive_voice.constants import QUALITY_WARNING, TRANSLATION_WARNING
+from archive_voice.constants import QUALITY_WARNING, SPEAKER_WARNING, TRANSLATION_WARNING
+from archive_voice.diarization import assign_speakers_to_segments
 from archive_voice.exporters import (
     empty_result_for_tests,
     export_all,
@@ -21,6 +22,7 @@ from archive_voice.exporters import (
     unique_output_path,
 )
 from archive_voice.models import TranscriptSegment
+from archive_voice.models import SpeakerTurn
 
 
 def test_format_timestamp() -> None:
@@ -84,6 +86,25 @@ def test_translation_output_labels_original_english_and_translated_speech() -> N
     assert "Machine translation from non-English speech: Wait, Grandma." in text
 
 
+def test_translation_output_includes_speaker_and_source_labels() -> None:
+    result = empty_result_for_tests("Mixed.mp3")
+    result.metadata.output_mode = "Machine English translation, not English-language transcription"
+    result.segments = [
+        TranscriptSegment(0.0, 4.0, "Do you have any questions?"),
+        TranscriptSegment(4.0, 9.0, "Wait, Grandma."),
+    ]
+    source_segments = [
+        TranscriptSegment(0.0, 4.0, "Do you have any questions?", speaker_label="Speaker 1"),
+        TranscriptSegment(4.0, 9.0, "Czekaj, babcia.", speaker_label="Speaker 2"),
+    ]
+
+    text = render_translation_text(result, include_timestamps=True, source_segments=source_segments)
+
+    assert "Speaker 1, Original English speech: Do you have any questions?" in text
+    assert "Speaker 2, Machine translation from non-English speech: Wait, Grandma." in text
+    assert SPEAKER_WARNING in text
+
+
 def test_translation_source_label_uses_timestamp_overlap() -> None:
     source_segments = [
         TranscriptSegment(0.0, 3.0, "Do you have any questions?"),
@@ -96,6 +117,35 @@ def test_translation_source_label_uses_timestamp_overlap() -> None:
     assert translation_source_label(TranscriptSegment(3.5, 7.0, "When you were here?"), source_segments) == (
         "Machine translation from non-English speech"
     )
+
+
+def test_transcript_output_includes_speaker_labels_and_warning() -> None:
+    result = empty_result_for_tests("Interview_01.mp3")
+    result.segments = [
+        TranscriptSegment(0.0, 4.0, "My name is Anna.", speaker_label="Speaker 1"),
+        TranscriptSegment(4.0, 9.0, "Do you have any questions?", speaker_label="Speaker 2"),
+    ]
+
+    text = render_transcript_text(result, "Research Transcript", include_timestamps=True)
+
+    assert "Speaker 1: My name is Anna." in text
+    assert "Speaker 2: Do you have any questions?" in text
+    assert SPEAKER_WARNING in text
+
+
+def test_assign_speakers_to_segments_uses_largest_overlap() -> None:
+    segments = [
+        TranscriptSegment(0.0, 4.0, "First speaker."),
+        TranscriptSegment(4.0, 9.0, "Second speaker."),
+    ]
+    speaker_turns = [
+        SpeakerTurn(0.0, 4.5, "Speaker 1"),
+        SpeakerTurn(4.5, 9.0, "Speaker 2"),
+    ]
+
+    assigned = assign_speakers_to_segments(segments, speaker_turns)
+
+    assert [segment.speaker_label for segment in assigned] == ["Speaker 1", "Speaker 2"]
 
 
 def test_reading_transcript_uses_paragraphs_without_timestamps() -> None:

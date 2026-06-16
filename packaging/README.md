@@ -26,6 +26,8 @@ For a fully offline handoff, include:
   - `packaging/assets/models/small/`
   - `packaging/assets/models/medium/`
   - `packaging/assets/models/large-v3/`
+- Optional pyannote diarization model folder for speaker tags:
+  - `packaging/assets/models/pyannote-speaker-diarization-community-1/`
 
 The app can still run without bundled models if the machine already has model access/cache, but that is not a true offline handoff.
 
@@ -36,6 +38,7 @@ For a journalist or historian who just needs to click and run, build with:
 - bundled `ffmpeg` and `ffprobe`
 - bundled `small` or `medium` model for reasonable app size
 - `large-v3` only when the recipient has enough disk/RAM and accuracy matters more than package size
+- bundled pyannote diarization model only if the recipient needs speaker tags offline
 
 Archive Voice also bundles PyAV/FFmpeg libraries through Python dependencies. If external `ffmpeg` or `ffprobe` is missing or cannot run on a Mac, the app falls back to packaged audio metadata handling.
 

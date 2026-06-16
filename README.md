@@ -13,6 +13,7 @@ It uses `faster-whisper` locally. Audio is not uploaded to cloud transcription s
 - TXT and DOCX export
 - Optional machine English translation output, written as separate clearly labeled files
 - Mixed-language translation outputs label likely original English speech separately from translated non-English speech
+- Optional machine-estimated speaker tags using local pyannote diarization
 - Optional JSON sidecar with segment metadata
 - Background processing with cancellation
 - Traceable transcript metadata and journalistic verification warnings
@@ -55,6 +56,8 @@ Important:
 
 The app does not upload audio or call cloud transcription APIs. The first use of a named faster-whisper model may require the model to be present locally or downloaded by faster-whisper/CTranslate2 tooling. For fully offline work, download or bundle the selected multilingual model before disconnecting from the internet.
 
+Speaker tagging uses `pyannote/speaker-diarization-community-1`. To download it, accept the model terms on Hugging Face and provide an `HF_TOKEN`, or bundle the downloaded model at `packaging/assets/models/pyannote-speaker-diarization-community-1/` for offline use.
+
 ## Output Warning
 
 Every transcript includes:
@@ -64,3 +67,7 @@ Every transcript includes:
 Optional English translation files are separate from the transcript and include:
 
 > This is a machine-generated English translation, not an original-language transcript and not an English-language transcription. It should be checked against the original recording and the original-language transcript before quotation, publication or archival use.
+
+When speaker tagging is enabled, outputs also include:
+
+> Speaker labels are machine-estimated from voice characteristics and timing. They should be checked against the original recording before quotation, publication or archival use.

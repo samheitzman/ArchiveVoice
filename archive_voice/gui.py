@@ -39,6 +39,7 @@ from .constants import (
     MODEL_OPTIONS,
     OUTPUT_STYLE_DESCRIPTIONS,
     PRIVACY_NOTE,
+    SPEAKER_COUNT_OPTIONS,
     SUBTITLE,
     SUPPORTED_AUDIO_EXTENSIONS,
 )
@@ -188,6 +189,12 @@ class MainWindow(QMainWindow):
         self.translation_checkbox.setToolTip(
             "Runs a second local Whisper pass and writes separate files clearly marked as machine English translation."
         )
+        self.speaker_checkbox = QCheckBox("Identify speakers")
+        self.speaker_checkbox.setToolTip(
+            "Runs local speaker diarization and adds machine-estimated Speaker 1, Speaker 2 labels."
+        )
+        self.speaker_count_combo = QComboBox()
+        self.speaker_count_combo.addItems(SPEAKER_COUNT_OPTIONS)
 
         advanced_layout.addRow("Initial prompt / context prompt", self.context_prompt)
         advanced_layout.addRow("Beam size", self.beam_spin)
@@ -197,6 +204,8 @@ class MainWindow(QMainWindow):
         advanced_layout.addRow("Segment length preference", self.segment_combo)
         advanced_layout.addRow("", self.json_checkbox)
         advanced_layout.addRow("", self.translation_checkbox)
+        advanced_layout.addRow("", self.speaker_checkbox)
+        advanced_layout.addRow("Speakers", self.speaker_count_combo)
         root.addWidget(self.advanced_group)
 
         action_row = QHBoxLayout()
@@ -437,6 +446,8 @@ class MainWindow(QMainWindow):
             keep_filler_words=self.filler_checkbox.isChecked(),
             segment_length_preference=self.segment_combo.currentText(),
             create_english_translation=self.translation_checkbox.isChecked(),
+            identify_speakers=self.speaker_checkbox.isChecked(),
+            speaker_count_label=self.speaker_count_combo.currentText(),
         )
 
         for row in range(self.table.rowCount()):

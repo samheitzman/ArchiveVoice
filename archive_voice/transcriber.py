@@ -8,6 +8,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QObject, Signal, Slot
 
+from .diarization import assign_speakers_to_segments, run_speaker_diarization
 from .exporters import export_all, export_translation_all
 from .models import (
     TranscriptMetadata,
@@ -183,6 +184,14 @@ class BatchTranscriptionWorker(QObject):
         if not segments:
             raise RuntimeError("Archive Voice could not detect speech in this file.")
         self.log_message.emit(f"Transcription complete. Segments: {len(segments)}.")
+        if self.settings.identify_speakers:
+            self.file_progress.emit(row, "Identifying speakers", "", "")
+            self.log_message.emit("Starting speaker tagging. Labels are machine-estimated and require review.")
+            self.log_message.emit(f"Speaker count setting: {self.settings.speaker_count_label}.")
+            speaker_turns = run_speaker_diarization(audio_path, self.settings.speaker_count_label)
+            segments = assign_speakers_to_segments(segments, speaker_turns)
+            speaker_count = len({turn.speaker_label for turn in speaker_turns})
+            self.log_message.emit(f"Speaker tagging complete. Estimated speakers: {speaker_count}.")
         detected_language = getattr(info, "language", None)
         language_probability = getattr(info, "language_probability", None)
         if detected_language:

@@ -5,7 +5,7 @@ import re
 from datetime import datetime
 from pathlib import Path
 
-from .constants import QUALITY_WARNING, TRANSLATION_WARNING
+from .constants import QUALITY_WARNING, SPEAKER_WARNING, TRANSLATION_WARNING
 from .models import TranscriptResult, TranscriptSegment
 
 
@@ -150,19 +150,24 @@ def render_transcript_text(result: TranscriptResult, style: str, include_timesta
         )
 
     if style == "Reading Transcript":
-        lines.extend(render_reading_paragraphs(result.segments))
+        if has_speaker_labels(result.segments):
+            lines.extend(render_speaker_reading_paragraphs(result.segments))
+        else:
+            lines.extend(render_reading_paragraphs(result.segments))
     else:
         for segment in result.segments:
             if style == "Clean Transcript" and not include_timestamps:
-                lines.append(segment.text)
+                lines.append(format_segment_text(segment))
             elif style == "Research Transcript":
                 lines.append(f"[{format_timestamp(segment.start)} - {format_timestamp(segment.end)}]")
-                lines.append(segment.text)
+                lines.append(format_segment_text(segment))
                 lines.append("")
             else:
-                lines.append(f"[{format_timestamp(segment.start)}] {segment.text}")
+                lines.append(f"[{format_timestamp(segment.start)}] {format_segment_text(segment)}")
 
     lines.extend(["", "Notes:", f"- {QUALITY_WARNING}"])
+    if has_speaker_labels(result.segments):
+        lines.append(f"- {SPEAKER_WARNING}")
     return "\n".join(lines).strip() + "\n"
 
 
@@ -197,15 +202,57 @@ def render_translation_text(
 
     for segment in result.segments:
         source_label = translation_source_label(segment, source_segments)
+        speaker_prefix = translation_speaker_prefix(segment, source_segments)
+        label = f"{speaker_prefix}{source_label}"
         if include_timestamps:
             lines.append(f"[{format_timestamp(segment.start)} - {format_timestamp(segment.end)}]")
-            lines.append(f"{source_label}: {segment.text}")
+            lines.append(f"{label}: {segment.text}")
             lines.append("")
         else:
-            lines.append(f"{source_label}: {segment.text}")
+            lines.append(f"{label}: {segment.text}")
 
     lines.extend(["", "Notes:", f"- {TRANSLATION_WARNING}"])
+    if has_speaker_labels(source_segments or result.segments):
+        lines.append(f"- {SPEAKER_WARNING}")
     return "\n".join(lines).strip() + "\n"
+
+
+def has_speaker_labels(segments: list[TranscriptSegment]) -> bool:
+    return any(segment.speaker_label for segment in segments)
+
+
+def format_segment_text(segment: TranscriptSegment) -> str:
+    if segment.speaker_label:
+        return f"{segment.speaker_label}: {segment.text}"
+    return segment.text
+
+
+def translation_speaker_prefix(
+    translated_segment: TranscriptSegment,
+    source_segments: list[TranscriptSegment] | None,
+) -> str:
+    speaker_label = translated_segment.speaker_label or speaker_label_from_source(translated_segment, source_segments)
+    return f"{speaker_label}, " if speaker_label else ""
+
+
+def speaker_label_from_source(
+    translated_segment: TranscriptSegment,
+    source_segments: list[TranscriptSegment] | None,
+) -> str | None:
+    if not source_segments:
+        return None
+    overlap_by_speaker: dict[str, float] = {}
+    for source_segment in overlapping_segments(translated_segment, source_segments):
+        if not source_segment.speaker_label:
+            continue
+        overlap = max(
+            0.0,
+            min(translated_segment.end, source_segment.end) - max(translated_segment.start, source_segment.start),
+        )
+        overlap_by_speaker[source_segment.speaker_label] = overlap_by_speaker.get(source_segment.speaker_label, 0.0) + overlap
+    if not overlap_by_speaker:
+        return None
+    return max(overlap_by_speaker.items(), key=lambda item: item[1])[0]
 
 
 def translation_source_label(
@@ -289,6 +336,17 @@ def render_reading_paragraphs(
     if current_parts:
         append_reading_paragraph(paragraphs, current_parts, current_language, should_label_languages)
 
+    return paragraphs
+
+
+def render_speaker_reading_paragraphs(segments: list[TranscriptSegment]) -> list[str]:
+    paragraphs: list[str] = []
+    for segment in segments:
+        speaker = segment.speaker_label or "Speaker unknown"
+        for paragraph_text in render_reading_paragraphs([segment], label_languages=False):
+            if paragraph_text:
+                paragraphs.append(f"{speaker}: {paragraph_text}")
+                paragraphs.append("")
     return paragraphs
 
 
@@ -437,25 +495,33 @@ def export_docx(result: TranscriptResult, path: Path, style: str, include_timest
     document.add_heading("Transcript", level=2)
 
     if style == "Reading Transcript":
-        for paragraph_text in render_reading_paragraphs(result.segments):
+        paragraphs = (
+            render_speaker_reading_paragraphs(result.segments)
+            if has_speaker_labels(result.segments)
+            else render_reading_paragraphs(result.segments)
+        )
+        for paragraph_text in paragraphs:
             if paragraph_text:
                 document.add_paragraph(paragraph_text)
     elif style == "Clean Transcript" and not include_timestamps:
         for segment in result.segments:
-            document.add_paragraph(segment.text)
+            document.add_paragraph(format_segment_text(segment))
     else:
         for segment in result.segments:
             if style == "Research Transcript":
                 stamp = f"[{format_timestamp(segment.start)} - {format_timestamp(segment.end)}]"
                 document.add_paragraph(stamp, style=None)
-                document.add_paragraph(segment.text)
+                document.add_paragraph(format_segment_text(segment))
             else:
-                document.add_paragraph(f"[{format_timestamp(segment.start)}] {segment.text}")
+                document.add_paragraph(f"[{format_timestamp(segment.start)}] {format_segment_text(segment)}")
 
     document.add_paragraph()
     document.add_heading("Notes", level=2)
     paragraph = document.add_paragraph(QUALITY_WARNING)
     paragraph.runs[-1].add_break(WD_BREAK.LINE)
+    if has_speaker_labels(result.segments):
+        speaker_paragraph = document.add_paragraph(SPEAKER_WARNING)
+        speaker_paragraph.runs[-1].add_break(WD_BREAK.LINE)
     document.add_paragraph("Names, dates, places and unclear passages require human verification.", style=None)
 
     document.save(path)
@@ -529,15 +595,20 @@ def export_translation_docx(
     )
     for segment in result.segments:
         source_label = translation_source_label(segment, source_segments)
+        speaker_prefix = translation_speaker_prefix(segment, source_segments)
+        label = f"{speaker_prefix}{source_label}"
         if include_timestamps:
             stamp = f"[{format_timestamp(segment.start)} - {format_timestamp(segment.end)}]"
             document.add_paragraph(stamp, style=None)
-        document.add_paragraph(f"{source_label}: {segment.text}")
+        document.add_paragraph(f"{label}: {segment.text}")
 
     document.add_paragraph()
     document.add_heading("Notes", level=2)
     paragraph = document.add_paragraph(TRANSLATION_WARNING)
     paragraph.runs[-1].add_break(WD_BREAK.LINE)
+    if has_speaker_labels(source_segments or result.segments):
+        speaker_paragraph = document.add_paragraph(SPEAKER_WARNING)
+        speaker_paragraph.runs[-1].add_break(WD_BREAK.LINE)
     document.add_paragraph("Names, dates, places and unclear passages require human verification.", style=None)
 
     document.save(path)
@@ -559,7 +630,12 @@ def export_json(result: TranscriptResult, path: Path) -> Path:
         "output_mode": metadata.output_mode,
         "duration_seconds": metadata.duration_seconds,
         "segments": [
-            {"start": segment.start, "end": segment.end, "text": segment.text}
+            {
+                "start": segment.start,
+                "end": segment.end,
+                "text": segment.text,
+                "speaker_label": segment.speaker_label,
+            }
             for segment in result.segments
         ],
     }

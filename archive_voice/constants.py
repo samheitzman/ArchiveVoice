@@ -38,6 +38,8 @@ OUTPUT_STYLE_DESCRIPTIONS = (
     "Reading: paragraph-style text for reading, with no wording changes.",
 )
 
+SPEAKER_COUNT_OPTIONS = ("Auto", "2", "3", "4", "5")
+
 SUPPORTED_AUDIO_EXTENSIONS = {".mp3", ".wav", ".m4a", ".aac", ".flac"}
 REQUIRED_AUDIO_EXTENSION = ".mp3"
 
@@ -52,6 +54,12 @@ TRANSLATION_WARNING = (
     "transcript and not an English-language transcription. It should be checked "
     "against the original recording and the original-language transcript before "
     "quotation, publication or archival use."
+)
+
+SPEAKER_WARNING = (
+    "Speaker labels are machine-estimated from voice characteristics and timing. "
+    "They should be checked against the original recording before quotation, "
+    "publication or archival use."
 )
 
 DEFAULT_CONTEXT_PROMPT = (
