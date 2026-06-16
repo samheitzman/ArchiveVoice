@@ -166,7 +166,11 @@ def render_transcript_text(result: TranscriptResult, style: str, include_timesta
     return "\n".join(lines).strip() + "\n"
 
 
-def render_translation_text(result: TranscriptResult, include_timestamps: bool) -> str:
+def render_translation_text(
+    result: TranscriptResult,
+    include_timestamps: bool,
+    source_segments: list[TranscriptSegment] | None = None,
+) -> str:
     metadata = result.metadata
     lines = [
         "MACHINE ENGLISH TRANSLATION",
@@ -182,20 +186,63 @@ def render_translation_text(result: TranscriptResult, include_timestamps: bool) 
         f"Output mode: {metadata.output_mode}",
         f"Duration: {format_duration(metadata.duration_seconds)}",
         "",
-        "English translation:",
+        "English translation with source labels:",
+        "",
+        "Source labels:",
+        "- Original English speech: the source transcript at this timestamp appears to be English.",
+        "- Machine translation from non-English speech: the source transcript at this timestamp appears to be another language.",
+        "- Machine translation, source language uncertain: the source language could not be identified confidently.",
         "",
     ]
 
     for segment in result.segments:
+        source_label = translation_source_label(segment, source_segments)
         if include_timestamps:
             lines.append(f"[{format_timestamp(segment.start)} - {format_timestamp(segment.end)}]")
-            lines.append(segment.text)
+            lines.append(f"{source_label}: {segment.text}")
             lines.append("")
         else:
-            lines.append(segment.text)
+            lines.append(f"{source_label}: {segment.text}")
 
     lines.extend(["", "Notes:", f"- {TRANSLATION_WARNING}"])
     return "\n".join(lines).strip() + "\n"
+
+
+def translation_source_label(
+    translated_segment: TranscriptSegment,
+    source_segments: list[TranscriptSegment] | None,
+) -> str:
+    if not source_segments:
+        return "Machine translation, source language uncertain"
+    source_text = " ".join(segment.text for segment in overlapping_segments(translated_segment, source_segments))
+    if not source_text.strip():
+        return "Machine translation, source language uncertain"
+    language = detect_segment_language(source_text)
+    if language == "English":
+        return "Original English speech"
+    if language is None:
+        return "Machine translation, source language uncertain"
+    return "Machine translation from non-English speech"
+
+
+def overlapping_segments(
+    segment: TranscriptSegment,
+    candidates: list[TranscriptSegment],
+    fallback_window_seconds: float = 1.0,
+) -> list[TranscriptSegment]:
+    overlaps = [
+        candidate
+        for candidate in candidates
+        if max(segment.start, candidate.start) < min(segment.end, candidate.end)
+    ]
+    if overlaps:
+        return overlaps
+    return [
+        candidate
+        for candidate in candidates
+        if abs(candidate.start - segment.start) <= fallback_window_seconds
+        or abs(candidate.end - segment.end) <= fallback_window_seconds
+    ]
 
 
 def render_reading_paragraphs(
@@ -415,13 +462,23 @@ def export_docx(result: TranscriptResult, path: Path, style: str, include_timest
     return path
 
 
-def export_translation_txt(result: TranscriptResult, path: Path, include_timestamps: bool) -> Path:
+def export_translation_txt(
+    result: TranscriptResult,
+    path: Path,
+    include_timestamps: bool,
+    source_segments: list[TranscriptSegment] | None = None,
+) -> Path:
     path = unique_output_path(path)
-    path.write_text(render_translation_text(result, include_timestamps), encoding="utf-8")
+    path.write_text(render_translation_text(result, include_timestamps, source_segments), encoding="utf-8")
     return path
 
 
-def export_translation_docx(result: TranscriptResult, path: Path, include_timestamps: bool) -> Path:
+def export_translation_docx(
+    result: TranscriptResult,
+    path: Path,
+    include_timestamps: bool,
+    source_segments: list[TranscriptSegment] | None = None,
+) -> Path:
     path = unique_output_path(path)
     try:
         from docx import Document
@@ -465,12 +522,17 @@ def export_translation_docx(result: TranscriptResult, path: Path, include_timest
         cells[1].text = value
 
     document.add_paragraph()
-    document.add_heading("English translation", level=2)
+    document.add_heading("English translation with source labels", level=2)
+    document.add_paragraph(
+        "Source labels distinguish speech that appears to have been English in the "
+        "original audio from speech translated from another language."
+    )
     for segment in result.segments:
+        source_label = translation_source_label(segment, source_segments)
         if include_timestamps:
             stamp = f"[{format_timestamp(segment.start)} - {format_timestamp(segment.end)}]"
             document.add_paragraph(stamp, style=None)
-        document.add_paragraph(segment.text)
+        document.add_paragraph(f"{source_label}: {segment.text}")
 
     document.add_paragraph()
     document.add_heading("Notes", level=2)
@@ -537,13 +599,18 @@ def export_translation_all(
     include_timestamps: bool,
     write_txt: bool,
     write_docx: bool,
+    source_segments: list[TranscriptSegment] | None = None,
 ) -> list[Path]:
     created: list[Path] = []
     base_path = translation_base_path(audio_path, output_dir)
     if write_txt:
-        created.append(export_translation_txt(result, base_path.with_suffix(".txt"), include_timestamps))
+        created.append(
+            export_translation_txt(result, base_path.with_suffix(".txt"), include_timestamps, source_segments)
+        )
     if write_docx:
-        created.append(export_translation_docx(result, base_path.with_suffix(".docx"), include_timestamps))
+        created.append(
+            export_translation_docx(result, base_path.with_suffix(".docx"), include_timestamps, source_segments)
+        )
     return created
 
 

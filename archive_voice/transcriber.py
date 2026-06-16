@@ -227,14 +227,20 @@ class BatchTranscriptionWorker(QObject):
         for path in created:
             self.log_message.emit(f"Saved: {path}")
         if self.settings.create_english_translation:
-            translation_created = self._translate_one(row, audio_path, duration)
+            translation_created = self._translate_one(row, audio_path, duration, source_segments=segments)
             created.extend(translation_created)
             self.settings.created_paths.extend(translation_created)
             for path in translation_created:
                 self.log_message.emit(f"Saved: {path}")
         return created
 
-    def _translate_one(self, row: int, audio_path: Path, duration: float | None) -> list[Path]:
+    def _translate_one(
+        self,
+        row: int,
+        audio_path: Path,
+        duration: float | None,
+        source_segments: list[TranscriptSegment],
+    ) -> list[Path]:
         if self._cancelled:
             raise CancelledError()
         self.file_progress.emit(row, "Starting English translation", "", "")
@@ -311,6 +317,7 @@ class BatchTranscriptionWorker(QObject):
             include_timestamps=self.settings.include_timestamps,
             write_txt=self.settings.write_txt,
             write_docx=self.settings.write_docx,
+            source_segments=source_segments,
         )
 
 

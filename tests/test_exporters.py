@@ -17,8 +17,10 @@ from archive_voice.exporters import (
     split_reading_units,
     style_uses_timestamps,
     transcript_base_path,
+    translation_source_label,
     unique_output_path,
 )
+from archive_voice.models import TranscriptSegment
 
 
 def test_format_timestamp() -> None:
@@ -62,6 +64,38 @@ def test_translation_output_is_clearly_labeled() -> None:
     assert "Output mode: Machine English translation, not English-language transcription" in text
     assert "[00:00:00 - 00:00:12]" in text
     assert TRANSLATION_WARNING in text
+
+
+def test_translation_output_labels_original_english_and_translated_speech() -> None:
+    result = empty_result_for_tests("Mixed.mp3")
+    result.metadata.output_mode = "Machine English translation, not English-language transcription"
+    result.segments = [
+        TranscriptSegment(0.0, 4.0, "Do you have any questions?"),
+        TranscriptSegment(4.0, 9.0, "Wait, Grandma."),
+    ]
+    source_segments = [
+        TranscriptSegment(0.0, 4.0, "Do you have any questions?"),
+        TranscriptSegment(4.0, 9.0, "Czekaj, babcia."),
+    ]
+
+    text = render_translation_text(result, include_timestamps=True, source_segments=source_segments)
+
+    assert "Original English speech: Do you have any questions?" in text
+    assert "Machine translation from non-English speech: Wait, Grandma." in text
+
+
+def test_translation_source_label_uses_timestamp_overlap() -> None:
+    source_segments = [
+        TranscriptSegment(0.0, 3.0, "Do you have any questions?"),
+        TranscriptSegment(3.0, 8.0, "A jak pani tutaj była?"),
+    ]
+
+    assert translation_source_label(TranscriptSegment(0.5, 2.0, "Do you have any questions?"), source_segments) == (
+        "Original English speech"
+    )
+    assert translation_source_label(TranscriptSegment(3.5, 7.0, "When you were here?"), source_segments) == (
+        "Machine translation from non-English speech"
+    )
 
 
 def test_reading_transcript_uses_paragraphs_without_timestamps() -> None:
@@ -279,6 +313,7 @@ def test_export_translation_all_uses_separate_filename_and_no_overwrite(tmp_path
         include_timestamps=True,
         write_txt=True,
         write_docx=False,
+        source_segments=result.segments,
     )
 
     assert [path.name for path in created] == ["Interview_01_english_translation_2.txt"]
