@@ -94,13 +94,14 @@ class BatchTranscriptionWorker(QObject):
         self.log_message.emit("Checking ffmpeg and ffprobe.")
         ffmpeg = resolve_binary("ffmpeg")
         ffprobe = resolve_binary("ffprobe")
-        if ffmpeg is None or ffprobe is None:
-            raise RuntimeError(
-                "ffmpeg and ffprobe are required for local audio handling. "
-                "Use a packaged Archive Voice build with bundled ffmpeg, or install ffmpeg and try again."
-            )
-        self.log_message.emit(f"ffmpeg found: {ffmpeg}")
-        self.log_message.emit(f"ffprobe found: {ffprobe}")
+        if ffmpeg is None:
+            self.log_message.emit("ffmpeg not found. Archive Voice will use the packaged audio libraries.")
+        else:
+            self.log_message.emit(f"ffmpeg found: {ffmpeg}")
+        if ffprobe is None:
+            self.log_message.emit("ffprobe not found. Archive Voice will estimate duration from audio metadata.")
+        else:
+            self.log_message.emit(f"ffprobe found: {ffprobe}")
 
     def _load_model(self):
         try:
@@ -231,27 +232,45 @@ class CancelledError(Exception):
 
 def probe_duration(audio_path: Path) -> float | None:
     ffprobe = resolve_binary("ffprobe")
-    if ffprobe is None:
-        return None
+    if ffprobe is not None:
+        try:
+            result = subprocess.run(
+                [
+                    ffprobe,
+                    "-v",
+                    "error",
+                    "-show_entries",
+                    "format=duration",
+                    "-of",
+                    "default=noprint_wrappers=1:nokey=1",
+                    str(audio_path),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            return float(result.stdout.strip())
+        except Exception:
+            pass
+    return probe_duration_with_av(audio_path)
+
+
+def probe_duration_with_av(audio_path: Path) -> float | None:
     try:
-        result = subprocess.run(
-            [
-                ffprobe,
-                "-v",
-                "error",
-                "-show_entries",
-                "format=duration",
-                "-of",
-                "default=noprint_wrappers=1:nokey=1",
-                str(audio_path),
-            ],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        return float(result.stdout.strip())
+        import av
+
+        with av.open(str(audio_path)) as container:
+            if container.duration is not None:
+                return float(container.duration / av.time_base)
+            durations = []
+            for stream in container.streams.audio:
+                if stream.duration is not None and stream.time_base is not None:
+                    durations.append(float(stream.duration * stream.time_base))
+            if durations:
+                return max(durations)
     except Exception:
         return None
+    return None
 
 
 def resolve_binary(name: str) -> str | None:

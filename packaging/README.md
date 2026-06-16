@@ -37,6 +37,8 @@ For a journalist or historian who just needs to click and run, build with:
 - bundled `small` or `medium` model for reasonable app size
 - `large-v3` only when the recipient has enough disk/RAM and accuracy matters more than package size
 
+Archive Voice also bundles PyAV/FFmpeg libraries through Python dependencies. If external `ffmpeg` or `ffprobe` is missing or cannot run on a Mac, the app falls back to packaged audio metadata handling.
+
 ## macOS
 
 From the project root:
@@ -49,9 +51,12 @@ Output:
 
 ```text
 dist/Archive Voice.app
+dist/ArchiveVoice-0.2.0-mac-arm64.dmg
 ```
 
-For distribution outside your own machine, sign and notarize the app with your Apple Developer certificate. Unsigned apps may require right-click > Open on the recipient's Mac.
+The current macOS build produced on an Apple Silicon Mac is `arm64`. It is intended for Apple Silicon Macs. For Intel Macs, build on an Intel Mac or set up a universal build with universal Python/native dependencies.
+
+For distribution outside your own machine, sign and notarize the app with your Apple Developer certificate. Unsigned or ad-hoc-signed apps may require right-click > Open on the recipient's Mac and are not truly foolproof under Gatekeeper.
 
 ## Windows
 
@@ -68,4 +73,3 @@ dist\Archive Voice\Archive Voice.exe
 ```
 
 Zip the whole `dist\Archive Voice` folder and send that folder to the recipient. The `.exe` depends on the adjacent bundled files in that folder.
-

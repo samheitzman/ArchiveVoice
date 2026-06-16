@@ -24,3 +24,7 @@ archive-voice = "archive_voice.__main__:main"
 [build-system]
 requires = ["setuptools>=69", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["archive_voice*"]
+exclude = ["packaging*"]
