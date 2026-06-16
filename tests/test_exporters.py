@@ -9,8 +9,10 @@ from archive_voice.exporters import (
     export_json,
     export_txt,
     format_timestamp,
+    detect_segment_language,
     render_transcript_text,
     render_reading_paragraphs,
+    split_reading_units,
     style_uses_timestamps,
     transcript_base_path,
 )
@@ -77,7 +79,40 @@ def test_reading_paragraphs_break_on_pause() -> None:
 
     paragraphs = render_reading_paragraphs(result.segments, pause_break_seconds=1.6)
 
-    assert paragraphs == ["My name is Anna.", "", "I remember the winter very clearly."]
+    assert paragraphs == ["My name is Anna.", "", "I remember the winter very clearly.", ""]
+
+
+def test_reading_paragraphs_break_on_language_change() -> None:
+    result = empty_result_for_tests()
+    result.segments[0].text = (
+        "Czekaj, babcia. Do you have any questions? "
+        "A jak pani tutaj była, czy pani widziała więźniów żydowskich?"
+    )
+    result.segments[1].text = "Because she starts to say the same thing over."
+
+    paragraphs = render_reading_paragraphs(result.segments)
+
+    assert paragraphs == [
+        "[Polish] Czekaj, babcia.",
+        "",
+        "[English] Do you have any questions?",
+        "",
+        "[Polish] A jak pani tutaj była, czy pani widziała więźniów żydowskich?",
+        "",
+        "[English] Because she starts to say the same thing over.",
+        "",
+    ]
+
+
+def test_split_reading_units() -> None:
+    units = split_reading_units("Czekaj, babcia. Do you have any questions? A jak pani tutaj była?")
+
+    assert units == ["Czekaj, babcia.", "Do you have any questions?", "A jak pani tutaj była?"]
+
+
+def test_detect_segment_language() -> None:
+    assert detect_segment_language("A jak pani tutaj była, czy pani widziała więźniów?") == "Polish"
+    assert detect_segment_language("Do you have any questions?") == "English"
 
 
 def test_export_txt_writes_utf8(tmp_path) -> None:

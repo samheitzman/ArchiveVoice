@@ -1,11 +1,64 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 
 from .constants import QUALITY_WARNING
 from .models import TranscriptResult, TranscriptSegment
+
+
+POLISH_MARKERS = {
+    "ale",
+    "babcia",
+    "byla",
+    "było",
+    "były",
+    "czekaj",
+    "czy",
+    "gdzie",
+    "jak",
+    "jakąś",
+    "mi",
+    "miały",
+    "mnie",
+    "nie",
+    "od",
+    "one",
+    "pamięta",
+    "pani",
+    "przy",
+    "ręce",
+    "się",
+    "tak",
+    "tutaj",
+    "więźniów",
+    "widziała",
+    "żydowskich",
+}
+ENGLISH_MARKERS = {
+    "about",
+    "any",
+    "because",
+    "do",
+    "does",
+    "english",
+    "have",
+    "here",
+    "living",
+    "questions",
+    "same",
+    "say",
+    "see",
+    "she",
+    "starts",
+    "the",
+    "thing",
+    "to",
+    "when",
+}
+POLISH_CHARACTERS = set("ąćęłńóśźżĄĆĘŁŃÓŚŹŻ")
 
 
 def format_timestamp(seconds: float) -> str:
@@ -82,34 +135,97 @@ def render_transcript_text(result: TranscriptResult, style: str, include_timesta
 def render_reading_paragraphs(
     segments: list[TranscriptSegment],
     pause_break_seconds: float = 1.6,
-    max_paragraph_chars: int = 900,
+    max_paragraph_chars: int = 650,
+    label_languages: bool = True,
 ) -> list[str]:
     paragraphs: list[str] = []
     current_parts: list[str] = []
     current_length = 0
     previous_end: float | None = None
+    current_language: str | None = None
+    units_by_segment = [(segment, split_reading_units(segment.text)) for segment in segments]
+    detected_languages = {
+        language
+        for _, units in units_by_segment
+        for language in (detect_segment_language(unit) for unit in units)
+        if language is not None
+    }
+    should_label_languages = label_languages and len(detected_languages) > 1
 
-    for segment in segments:
-        text = segment.text.strip()
-        if not text:
-            continue
-        gap = 0.0 if previous_end is None else max(0.0, segment.start - previous_end)
-        should_break = bool(current_parts) and (
-            gap >= pause_break_seconds or current_length + len(text) > max_paragraph_chars
-        )
-        if should_break:
-            paragraphs.append(" ".join(current_parts))
-            paragraphs.append("")
-            current_parts = []
-            current_length = 0
-        current_parts.append(text)
-        current_length += len(text) + 1
+    for segment, units in units_by_segment:
+        for index, text in enumerate(units):
+            language = detect_segment_language(text)
+            gap = 0.0 if previous_end is None or index > 0 else max(0.0, segment.start - previous_end)
+            should_break = bool(current_parts) and (
+                gap >= pause_break_seconds
+                or language_changed(current_language, language)
+                or current_length + len(text) > max_paragraph_chars
+            )
+            if should_break:
+                append_reading_paragraph(paragraphs, current_parts, current_language, should_label_languages)
+                current_parts = []
+                current_length = 0
+                current_language = None
+            current_parts.append(text)
+            current_length += len(text) + 1
+            current_language = merge_language(current_language, language)
         previous_end = segment.end
 
     if current_parts:
-        paragraphs.append(" ".join(current_parts))
+        append_reading_paragraph(paragraphs, current_parts, current_language, should_label_languages)
 
     return paragraphs
+
+
+def split_reading_units(text: str) -> list[str]:
+    stripped = text.strip()
+    if not stripped:
+        return []
+    units = re.split(r"(?<=[.!?])\s+(?=[A-ZĄĆĘŁŃÓŚŹŻ])", stripped)
+    return [unit.strip() for unit in units if unit.strip()]
+
+
+def append_reading_paragraph(
+    paragraphs: list[str],
+    parts: list[str],
+    language: str | None,
+    label_languages: bool,
+) -> None:
+    paragraph = " ".join(parts).strip()
+    if not paragraph:
+        return
+    if label_languages and language in {"Polish", "English"}:
+        paragraph = f"[{language}] {paragraph}"
+    paragraphs.append(paragraph)
+    paragraphs.append("")
+
+
+def detect_segment_language(text: str) -> str | None:
+    lowered = text.lower()
+    words = [word.strip(".,;:!?()[]\"'") for word in lowered.split()]
+    polish_score = sum(1 for word in words if word in POLISH_MARKERS)
+    english_score = sum(1 for word in words if word in ENGLISH_MARKERS)
+    if any(character in POLISH_CHARACTERS for character in text):
+        polish_score += 2
+    if polish_score >= english_score + 2:
+        return "Polish"
+    if english_score >= polish_score + 2:
+        return "English"
+    return None
+
+
+def language_changed(current_language: str | None, next_language: str | None) -> bool:
+    if current_language is None or next_language is None:
+        return False
+    return current_language != next_language
+
+
+def merge_language(current_language: str | None, next_language: str | None) -> str | None:
+    if current_language is None:
+        return next_language
+    if next_language is None or current_language == next_language:
+        return current_language
+    return None
 
 
 def export_txt(result: TranscriptResult, path: Path, style: str, include_timestamps: bool) -> Path:
