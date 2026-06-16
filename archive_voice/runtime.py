@@ -17,6 +17,17 @@ def resource_path(*parts: str) -> Path:
     return bundled_root().joinpath(*parts)
 
 
+def asset_path(*parts: str) -> Path | None:
+    candidates = [
+        resource_path("assets", *parts),
+        resource_path("packaging", "assets", *parts),
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return None
+
+
 def binary_name(name: str) -> str:
     if platform.system() == "Windows":
         return f"{name}.exe"
@@ -24,18 +35,15 @@ def binary_name(name: str) -> str:
 
 
 def bundled_binary(name: str) -> Path | None:
-    path = resource_path("assets", "bin", binary_name(name))
-    return path if path.exists() else None
+    return asset_path("bin", binary_name(name))
 
 
 def bundled_model_path(model_size: str) -> Path | None:
-    path = resource_path("assets", "models", model_size)
-    return path if path.exists() else None
+    return asset_path("models", model_size)
 
 
 def bundled_diarization_model_path() -> Path | None:
-    path = resource_path("assets", "models", "pyannote-speaker-diarization-community-1")
-    return path if path.exists() else None
+    return asset_path("models", "pyannote-speaker-diarization-community-1")
 
 
 def model_size_or_path(model_size: str) -> str:
