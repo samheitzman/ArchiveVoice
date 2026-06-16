@@ -56,6 +56,8 @@ dist/ArchiveVoice-0.2.0-mac-arm64.dmg
 
 The current macOS build produced on an Apple Silicon Mac is `arm64`. It is intended for Apple Silicon Macs. For Intel Macs, build on an Intel Mac or set up a universal build with universal Python/native dependencies.
 
+This repository includes a manual GitHub Actions workflow, `Build macOS Intel DMG`, that runs on GitHub's Intel macOS runner and builds `ArchiveVoice-<version>-mac-x64.dmg`.
+
 For distribution outside your own machine, sign and notarize the app with your Apple Developer certificate. Unsigned or ad-hoc-signed apps may require right-click > Open on the recipient's Mac and are not truly foolproof under Gatekeeper.
 
 ## Windows

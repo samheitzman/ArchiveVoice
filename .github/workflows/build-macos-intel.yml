@@ -1,0 +1,48 @@
+name: Build macOS Intel DMG
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Intel macOS installer
+    runs-on: macos-15-intel
+    timeout-minutes: 120
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install build dependencies
+        run: |
+          python3 -m venv .venv
+          .venv/bin/python -m pip install --upgrade pip
+          .venv/bin/python -m pip install -e ".[build]"
+
+      - name: Download bundled large-v3 model
+        env:
+          HF_HUB_DISABLE_XET: "1"
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          .venv/bin/hf download Systran/faster-whisper-large-v3 --local-dir packaging/assets/models/large-v3
+
+      - name: Build Intel DMG
+        run: |
+          packaging/scripts/build_macos.sh
+
+      - name: Verify DMG
+        run: |
+          hdiutil verify dist/ArchiveVoice-*-mac-x64.dmg
+
+      - name: Upload Intel DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: ArchiveVoice-mac-x64
+          path: dist/ArchiveVoice-*-mac-x64.dmg
+          if-no-files-found: error
+          compression-level: 0
