@@ -24,4 +24,10 @@ if [ ! -x "$PYTHON" ]; then
 fi
 
 echo "Starting Archive Voice..."
-"$PYTHON" -m archive_voice
+echo "Keeping this Mac awake while Archive Voice is open."
+
+if command -v caffeinate >/dev/null 2>&1; then
+  caffeinate -dimsu "$PYTHON" -m archive_voice
+else
+  "$PYTHON" -m archive_voice
+fi
