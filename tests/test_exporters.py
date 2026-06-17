@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 
 from archive_voice.constants import QUALITY_WARNING, SPEAKER_WARNING, TRANSLATION_WARNING
+from archive_voice.constants import SUPPORTED_MEDIA_EXTENSIONS
 from archive_voice.diarization import assign_speakers_to_segments
 from archive_voice.exporters import (
     empty_result_for_tests,
@@ -31,6 +32,12 @@ def test_format_timestamp() -> None:
     assert format_timestamp(0) == "00:00:00"
     assert format_timestamp(17.8) == "00:00:17"
     assert format_timestamp(3661.2) == "01:01:01"
+
+
+def test_media_extensions_include_common_video_formats() -> None:
+    assert ".mov" in SUPPORTED_MEDIA_EXTENSIONS
+    assert ".mp4" in SUPPORTED_MEDIA_EXTENSIONS
+    assert ".mkv" in SUPPORTED_MEDIA_EXTENSIONS
 
 
 def test_research_transcript_includes_traceability() -> None:

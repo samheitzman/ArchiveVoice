@@ -6,7 +6,7 @@ It uses `faster-whisper` locally. Audio is not uploaded to cloud transcription s
 
 ## Features
 
-- Batch transcription for MP3 files, with optional WAV, M4A, AAC and FLAC support
+- Batch transcription for audio and video files, including MP3, WAV, M4A, AAC, FLAC, MOV and MP4
 - Multilingual Whisper models only: `large-v3`, `medium`, and `small`
 - Language modes: Auto-detect, English, Polish, German, Latvian
 - Research, timestamped, clean, and reading transcript styles

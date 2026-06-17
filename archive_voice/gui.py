@@ -41,7 +41,7 @@ from .constants import (
     PRIVACY_NOTE,
     SPEAKER_COUNT_OPTIONS,
     SUBTITLE,
-    SUPPORTED_AUDIO_EXTENSIONS,
+    SUPPORTED_MEDIA_EXTENSIONS,
 )
 from .models import TranscriptionSettings
 from .transcriber import BatchTranscriptionWorker
@@ -342,7 +342,12 @@ class MainWindow(QMainWindow):
 
     @Slot()
     def add_files(self) -> None:
-        patterns = "Audio files (*.mp3 *.wav *.m4a *.aac *.flac);;MP3 files (*.mp3);;All files (*)"
+        patterns = (
+            "Media files (*.mp3 *.wav *.m4a *.aac *.flac *.mov *.mp4 *.m4v *.avi *.mkv);;"
+            "Audio files (*.mp3 *.wav *.m4a *.aac *.flac);;"
+            "Video files (*.mov *.mp4 *.m4v *.avi *.mkv);;"
+            "All files (*)"
+        )
         files, _ = QFileDialog.getOpenFileNames(self, "Add interview files", str(Path.home()), patterns)
         self._add_paths([Path(path) for path in files])
 
@@ -354,14 +359,14 @@ class MainWindow(QMainWindow):
         paths = [
             path
             for path in sorted(Path(folder).iterdir())
-            if path.is_file() and path.suffix.lower() in SUPPORTED_AUDIO_EXTENSIONS
+            if path.is_file() and path.suffix.lower() in SUPPORTED_MEDIA_EXTENSIONS
         ]
         self._add_paths(paths)
 
     def _add_paths(self, paths: list[Path]) -> None:
         known = {path.resolve() for path in self.audio_files}
         for path in paths:
-            if path.suffix.lower() not in SUPPORTED_AUDIO_EXTENSIONS:
+            if path.suffix.lower() not in SUPPORTED_MEDIA_EXTENSIONS:
                 continue
             resolved = path.resolve()
             if resolved in known:

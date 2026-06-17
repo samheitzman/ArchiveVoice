@@ -42,7 +42,21 @@ OUTPUT_STYLE_DESCRIPTIONS = (
 
 SPEAKER_COUNT_OPTIONS = ("Auto", "2", "3", "4", "5")
 
-SUPPORTED_AUDIO_EXTENSIONS = {".mp3", ".wav", ".m4a", ".aac", ".flac"}
+SUPPORTED_MEDIA_EXTENSIONS = {
+    ".aac",
+    ".aif",
+    ".aiff",
+    ".avi",
+    ".flac",
+    ".m4a",
+    ".m4v",
+    ".mkv",
+    ".mov",
+    ".mp3",
+    ".mp4",
+    ".wav",
+}
+SUPPORTED_AUDIO_EXTENSIONS = SUPPORTED_MEDIA_EXTENSIONS
 REQUIRED_AUDIO_EXTENSION = ".mp3"
 
 QUALITY_WARNING = (
