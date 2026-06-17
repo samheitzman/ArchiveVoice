@@ -31,7 +31,7 @@ def run_speaker_diarization(audio_path: Path, speaker_count_label: str = "Auto")
     try:
         output = pipeline(str(audio_path), **kwargs)
     except Exception as exc:
-        raise RuntimeError("Archive Voice could not identify speakers in this file.") from exc
+        raise RuntimeError(f"Archive Voice could not identify speakers in this file: {exc}") from exc
 
     return normalize_speaker_turns(extract_speaker_turns(output))
 

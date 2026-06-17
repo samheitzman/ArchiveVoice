@@ -188,10 +188,18 @@ class BatchTranscriptionWorker(QObject):
             self.file_progress.emit(row, "Identifying speakers", "", "")
             self.log_message.emit("Starting speaker tagging. Labels are machine-estimated and require review.")
             self.log_message.emit(f"Speaker count setting: {self.settings.speaker_count_label}.")
-            speaker_turns = run_speaker_diarization(audio_path, self.settings.speaker_count_label)
-            segments = assign_speakers_to_segments(segments, speaker_turns)
-            speaker_count = len({turn.speaker_label for turn in speaker_turns})
-            self.log_message.emit(f"Speaker tagging complete. Estimated speakers: {speaker_count}.")
+            try:
+                speaker_turns = run_speaker_diarization(audio_path, self.settings.speaker_count_label)
+            except Exception as exc:
+                self.log_message.emit(f"Speaker tagging failed for {audio_path.name}: {exc}")
+                self.log_message.emit("Continuing without speaker labels for this file.")
+            else:
+                if speaker_turns:
+                    segments = assign_speakers_to_segments(segments, speaker_turns)
+                    speaker_count = len({turn.speaker_label for turn in speaker_turns})
+                    self.log_message.emit(f"Speaker tagging complete. Estimated speakers: {speaker_count}.")
+                else:
+                    self.log_message.emit("Speaker tagging found no speaker turns. Continuing without speaker labels.")
         detected_language = getattr(info, "language", None)
         language_probability = getattr(info, "language_probability", None)
         if detected_language:
