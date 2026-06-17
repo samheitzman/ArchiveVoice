@@ -14,6 +14,8 @@ from archive_voice.exporters import (
     detect_segment_language,
     render_transcript_text,
     render_translation_text,
+    render_translated_reading_text,
+    render_translated_reading_paragraphs,
     render_reading_paragraphs,
     split_reading_units,
     style_uses_timestamps,
@@ -102,6 +104,40 @@ def test_translation_output_includes_speaker_and_source_labels() -> None:
 
     assert "Speaker 1, Original English speech: Do you have any questions?" in text
     assert "Speaker 2, Machine translation from non-English speech: Wait, Grandma." in text
+    assert SPEAKER_WARNING in text
+
+
+def test_translated_reading_groups_translation_into_labeled_paragraphs() -> None:
+    result = empty_result_for_tests("Mixed.mp3")
+    result.metadata.output_mode = "Machine English translation, not English-language transcription"
+    result.segments = [
+        TranscriptSegment(0.0, 2.0, "Okay, grandma."),
+        TranscriptSegment(2.0, 4.0, "Yes."),
+        TranscriptSegment(4.0, 7.0, "Grandma said that at the time of war, when it started,"),
+        TranscriptSegment(7.0, 10.0, "the girls and everyone had to work."),
+    ]
+    source_segments = [
+        TranscriptSegment(0.0, 2.0, "Okay, babcia.", speaker_label="Speaker 3"),
+        TranscriptSegment(2.0, 4.0, "Yes.", speaker_label="Speaker 3"),
+        TranscriptSegment(4.0, 7.0, "Babcia powiedziała, że w czasie wojny.", speaker_label="Speaker 5"),
+        TranscriptSegment(7.0, 10.0, "Dziewczyny musiały pracować.", speaker_label="Speaker 5"),
+    ]
+
+    paragraphs = render_translated_reading_paragraphs(result.segments, source_segments)
+    text = render_translated_reading_text(result, source_segments)
+
+    assert paragraphs == [
+        "(Translation) Speaker 3, Machine translation, source language uncertain: Okay, grandma. Yes.",
+        "",
+        (
+            "(Translation) Speaker 5, Machine translation from non-English speech: "
+            "Grandma said that at the time of war, when it started, the girls and everyone had to work."
+        ),
+        "",
+    ]
+    assert text.count("(Translation) Speaker 3") == 1
+    assert text.count("(Translation) Speaker 5") == 1
+    assert TRANSLATION_WARNING in text
     assert SPEAKER_WARNING in text
 
 
@@ -333,6 +369,23 @@ def test_export_all_writes_multiple_styles(tmp_path) -> None:
     ]
 
 
+def test_export_all_skips_translated_reading_for_original_exports(tmp_path) -> None:
+    result = empty_result_for_tests("Interview_01.mp3")
+
+    created = export_all(
+        result,
+        audio_path=tmp_path / "Interview_01.mp3",
+        output_dir=tmp_path,
+        styles=["Translated Reading"],
+        include_timestamps=False,
+        write_txt=True,
+        write_docx=False,
+        write_json_sidecar=False,
+    )
+
+    assert created == []
+
+
 def test_export_all_single_style_matches_audio_filename(tmp_path) -> None:
     result = empty_result_for_tests("Interview_01.mp3")
 
@@ -369,3 +422,21 @@ def test_export_translation_all_uses_separate_filename_and_no_overwrite(tmp_path
     assert [path.name for path in created] == ["Interview_01_english_translation_2.txt"]
     assert existing.read_text(encoding="utf-8") == "previous translation"
     assert "MACHINE ENGLISH TRANSLATION" in created[0].read_text(encoding="utf-8")
+
+
+def test_export_translation_all_writes_translated_reading_style(tmp_path) -> None:
+    result = empty_result_for_tests("Interview_01.mp3")
+
+    created = export_translation_all(
+        result,
+        audio_path=tmp_path / "Interview_01.mp3",
+        output_dir=tmp_path,
+        include_timestamps=False,
+        write_txt=True,
+        write_docx=False,
+        source_segments=result.segments,
+        styles=["Translated Reading"],
+    )
+
+    assert [path.name for path in created] == ["Interview_01_translated_reading.txt"]
+    assert created[0].read_text(encoding="utf-8").startswith("TRANSLATED READING")

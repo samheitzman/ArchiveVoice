@@ -101,7 +101,7 @@ def load_pipeline(pipeline_class, model_source: str):
 def speaker_count_kwargs(speaker_count_label: str) -> dict[str, int]:
     if speaker_count_label.isdigit():
         return {"num_speakers": int(speaker_count_label)}
-    return {"min_speakers": 2, "max_speakers": 5}
+    return {"min_speakers": 1, "max_speakers": 3}
 
 
 def extract_speaker_turns(output) -> list[SpeakerTurn]:

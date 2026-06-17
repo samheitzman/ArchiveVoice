@@ -146,11 +146,13 @@ class MainWindow(QMainWindow):
         self.clean_style_checkbox = QCheckBox("Clean Transcript")
         self.clean_style_checkbox.setChecked(True)
         self.reading_style_checkbox = QCheckBox("Reading Transcript")
+        self.translated_reading_style_checkbox = QCheckBox("Translated Reading")
         style_row = QHBoxLayout()
         style_row.addWidget(self.research_style_checkbox)
         style_row.addWidget(self.timestamped_style_checkbox)
         style_row.addWidget(self.clean_style_checkbox)
         style_row.addWidget(self.reading_style_checkbox)
+        style_row.addWidget(self.translated_reading_style_checkbox)
         style_row.addStretch(1)
         style_description = QLabel("\n".join(OUTPUT_STYLE_DESCRIPTIONS))
         style_description.setWordWrap(True)
@@ -187,7 +189,7 @@ class MainWindow(QMainWindow):
         self.json_checkbox = QCheckBox("Save JSON sidecar file")
         self.translation_checkbox = QCheckBox("Create English translation output")
         self.translation_checkbox.setToolTip(
-            "Runs a second local Whisper pass and writes separate files clearly marked as machine English translation."
+            "Creates the detailed line-by-line translation output. For easier reading, use the Translated Reading output style."
         )
         self.speaker_checkbox = QCheckBox("Identify speakers")
         self.speaker_checkbox.setToolTip(
@@ -252,6 +254,7 @@ class MainWindow(QMainWindow):
         self.timestamped_style_checkbox.toggled.connect(self._style_selection_changed)
         self.clean_style_checkbox.toggled.connect(self._style_selection_changed)
         self.reading_style_checkbox.toggled.connect(self._style_selection_changed)
+        self.translated_reading_style_checkbox.toggled.connect(self._style_selection_changed)
         self.start_button.clicked.connect(self.start_transcription)
         self.cancel_button.clicked.connect(self.cancel_transcription)
 
@@ -576,4 +579,6 @@ class MainWindow(QMainWindow):
             styles.append("Clean Transcript")
         if self.reading_style_checkbox.isChecked():
             styles.append("Reading Transcript")
+        if self.translated_reading_style_checkbox.isChecked():
+            styles.append("Translated Reading")
         return styles

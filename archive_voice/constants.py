@@ -29,6 +29,7 @@ OUTPUT_STYLES = (
     "Timestamped Transcript",
     "Clean Transcript",
     "Reading Transcript",
+    "Translated Reading",
 )
 
 OUTPUT_STYLE_DESCRIPTIONS = (
@@ -36,6 +37,7 @@ OUTPUT_STYLE_DESCRIPTIONS = (
     "Timestamped: simple timestamped lines for reviewing against audio.",
     "Clean: plain segment text without timestamps.",
     "Reading: paragraph-style text for reading, with no wording changes.",
+    "Translated Reading: paragraph-style machine English translation.",
 )
 
 SPEAKER_COUNT_OPTIONS = ("Auto", "2", "3", "4", "5")

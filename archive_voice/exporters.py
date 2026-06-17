@@ -98,6 +98,7 @@ def style_slug(style: str) -> str:
         "Timestamped Transcript": "timestamped_transcript",
         "Clean Transcript": "clean_transcript",
         "Reading Transcript": "reading_transcript",
+        "Translated Reading": "translated_reading",
     }.get(style, "transcript")
 
 
@@ -118,6 +119,10 @@ def transcript_base_path(audio_path: Path, output_dir: Path, style: str, use_sty
 
 def translation_base_path(audio_path: Path, output_dir: Path) -> Path:
     return output_dir / f"{audio_path.stem}_english_translation"
+
+
+def translated_reading_base_path(audio_path: Path, output_dir: Path) -> Path:
+    return output_dir / f"{audio_path.stem}_translated_reading"
 
 
 def unique_output_path(path: Path) -> Path:
@@ -215,6 +220,102 @@ def render_translation_text(
     if has_speaker_labels(source_segments or result.segments):
         lines.append(f"- {SPEAKER_WARNING}")
     return "\n".join(lines).strip() + "\n"
+
+
+def render_translated_reading_text(
+    result: TranscriptResult,
+    source_segments: list[TranscriptSegment] | None = None,
+) -> str:
+    metadata = result.metadata
+    lines = [
+        "TRANSLATED READING",
+        "Machine English translation for reading. This is not an original-language transcript.",
+        "",
+        f"Interview: {metadata.source_file}",
+        f"Translated: {metadata.transcribed_at.isoformat(timespec='seconds')}",
+        f"Model: {metadata.model}",
+        "",
+    ]
+    lines.extend(render_translated_reading_paragraphs(result.segments, source_segments))
+    lines.extend(["", "Notes:", f"- {TRANSLATION_WARNING}"])
+    if has_speaker_labels(source_segments or result.segments):
+        lines.append(f"- {SPEAKER_WARNING}")
+    return "\n".join(lines).strip() + "\n"
+
+
+def render_translated_reading_paragraphs(
+    segments: list[TranscriptSegment],
+    source_segments: list[TranscriptSegment] | None = None,
+    pause_break_seconds: float = 1.4,
+    max_paragraph_chars: int = 760,
+) -> list[str]:
+    paragraphs: list[str] = []
+    current_parts: list[str] = []
+    current_label: str | None = None
+    current_group_key: str | None = None
+    current_length = 0
+    previous_end: float | None = None
+
+    for segment in segments:
+        label = translation_block_label(segment, source_segments)
+        group_key = translation_block_group_key(segment, source_segments)
+        gap = 0.0 if previous_end is None else max(0.0, segment.start - previous_end)
+        text = segment.text.strip()
+        if not text:
+            previous_end = segment.end
+            continue
+        should_break = bool(current_parts) and (
+            group_key != current_group_key
+            or gap >= pause_break_seconds
+            or current_length + len(text) > max_paragraph_chars
+        )
+        if should_break:
+            append_translated_reading_paragraph(paragraphs, current_label, current_parts)
+            current_parts = []
+            current_label = None
+            current_group_key = None
+            current_length = 0
+        current_label = current_label or label
+        current_group_key = group_key
+        current_parts.append(text)
+        current_length += len(text) + 1
+        previous_end = segment.end
+
+    if current_parts:
+        append_translated_reading_paragraph(paragraphs, current_label, current_parts)
+    return paragraphs
+
+
+def append_translated_reading_paragraph(
+    paragraphs: list[str],
+    label: str | None,
+    parts: list[str],
+) -> None:
+    paragraph = " ".join(parts).strip()
+    if not paragraph:
+        return
+    prefix = f"(Translation) {label}: " if label else "(Translation): "
+    paragraphs.append(f"{prefix}{paragraph}")
+    paragraphs.append("")
+
+
+def translation_block_label(
+    translated_segment: TranscriptSegment,
+    source_segments: list[TranscriptSegment] | None,
+) -> str:
+    source_label = translation_source_label(translated_segment, source_segments)
+    speaker_prefix = translation_speaker_prefix(translated_segment, source_segments)
+    return f"{speaker_prefix}{source_label}"
+
+
+def translation_block_group_key(
+    translated_segment: TranscriptSegment,
+    source_segments: list[TranscriptSegment] | None,
+) -> str:
+    speaker_label = translated_segment.speaker_label or speaker_label_from_source(translated_segment, source_segments)
+    if speaker_label:
+        return speaker_label
+    return translation_source_label(translated_segment, source_segments)
 
 
 def has_speaker_labels(segments: list[TranscriptSegment]) -> bool:
@@ -615,6 +716,59 @@ def export_translation_docx(
     return path
 
 
+def export_translated_reading_txt(
+    result: TranscriptResult,
+    path: Path,
+    source_segments: list[TranscriptSegment] | None = None,
+) -> Path:
+    path = unique_output_path(path)
+    path.write_text(render_translated_reading_text(result, source_segments), encoding="utf-8")
+    return path
+
+
+def export_translated_reading_docx(
+    result: TranscriptResult,
+    path: Path,
+    source_segments: list[TranscriptSegment] | None = None,
+) -> Path:
+    path = unique_output_path(path)
+    try:
+        from docx import Document
+        from docx.enum.text import WD_BREAK
+        from docx.shared import Inches
+    except ImportError as exc:
+        raise RuntimeError(
+            "python-docx is not installed. Install the app requirements to export DOCX files."
+        ) from exc
+
+    document = Document()
+    section = document.sections[0]
+    section.top_margin = Inches(0.8)
+    section.bottom_margin = Inches(0.8)
+    section.left_margin = Inches(0.8)
+    section.right_margin = Inches(0.8)
+
+    metadata = result.metadata
+    document.add_heading(f"Translated Reading - {metadata.source_file}", level=1)
+    document.add_paragraph("Machine English translation for reading. This is not an original-language transcript.")
+
+    for paragraph_text in render_translated_reading_paragraphs(result.segments, source_segments):
+        if paragraph_text:
+            document.add_paragraph(paragraph_text)
+
+    document.add_paragraph()
+    document.add_heading("Notes", level=2)
+    paragraph = document.add_paragraph(TRANSLATION_WARNING)
+    paragraph.runs[-1].add_break(WD_BREAK.LINE)
+    if has_speaker_labels(source_segments or result.segments):
+        speaker_paragraph = document.add_paragraph(SPEAKER_WARNING)
+        speaker_paragraph.runs[-1].add_break(WD_BREAK.LINE)
+    document.add_paragraph("Names, dates, places and unclear passages require human verification.", style=None)
+
+    document.save(path)
+    return path
+
+
 def export_json(result: TranscriptResult, path: Path) -> Path:
     path = unique_output_path(path)
     metadata = result.metadata
@@ -654,8 +808,9 @@ def export_all(
     write_json_sidecar: bool,
 ) -> list[Path]:
     created: list[Path] = []
-    use_style_suffix = len(styles) > 1
-    for style in styles:
+    original_styles = [style for style in styles if style != "Translated Reading"]
+    use_style_suffix = len(original_styles) > 1
+    for style in original_styles:
         base_path = transcript_base_path(audio_path, output_dir, style, use_style_suffix=use_style_suffix)
         timestamps_for_style = style_uses_timestamps(style, include_timestamps)
         if write_txt:
@@ -676,17 +831,26 @@ def export_translation_all(
     write_txt: bool,
     write_docx: bool,
     source_segments: list[TranscriptSegment] | None = None,
+    styles: list[str] | None = None,
 ) -> list[Path]:
     created: list[Path] = []
-    base_path = translation_base_path(audio_path, output_dir)
-    if write_txt:
-        created.append(
-            export_translation_txt(result, base_path.with_suffix(".txt"), include_timestamps, source_segments)
-        )
-    if write_docx:
-        created.append(
-            export_translation_docx(result, base_path.with_suffix(".docx"), include_timestamps, source_segments)
-        )
+    translation_styles = styles or ["Detailed Translation"]
+    if "Detailed Translation" in translation_styles:
+        base_path = translation_base_path(audio_path, output_dir)
+        if write_txt:
+            created.append(
+                export_translation_txt(result, base_path.with_suffix(".txt"), include_timestamps, source_segments)
+            )
+        if write_docx:
+            created.append(
+                export_translation_docx(result, base_path.with_suffix(".docx"), include_timestamps, source_segments)
+            )
+    if "Translated Reading" in translation_styles:
+        base_path = translated_reading_base_path(audio_path, output_dir)
+        if write_txt:
+            created.append(export_translated_reading_txt(result, base_path.with_suffix(".txt"), source_segments))
+        if write_docx:
+            created.append(export_translated_reading_docx(result, base_path.with_suffix(".docx"), source_segments))
     return created
 
 

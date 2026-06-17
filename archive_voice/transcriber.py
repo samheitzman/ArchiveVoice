@@ -167,7 +167,7 @@ class BatchTranscriptionWorker(QObject):
             if duration:
                 percent = progress_percent(segment.end, duration)
                 progress_for_bar = percent
-                if self.settings.create_english_translation:
+                if self._needs_translation():
                     progress_for_bar = phase_file_percent(0, 70, percent)
                 status = (
                     f"Transcribing {format_duration_for_ui(segment.end)} / "
@@ -243,13 +243,24 @@ class BatchTranscriptionWorker(QObject):
         self.settings.created_paths.extend(created)
         for path in created:
             self.log_message.emit(f"Saved: {path}")
-        if self.settings.create_english_translation:
+        if self._needs_translation():
             translation_created = self._translate_one(row, audio_path, duration, source_segments=segments)
             created.extend(translation_created)
             self.settings.created_paths.extend(translation_created)
             for path in translation_created:
                 self.log_message.emit(f"Saved: {path}")
         return created
+
+    def _needs_translation(self) -> bool:
+        return self.settings.create_english_translation or "Translated Reading" in self.settings.output_styles
+
+    def _translation_styles(self) -> list[str]:
+        styles: list[str] = []
+        if self.settings.create_english_translation:
+            styles.append("Detailed Translation")
+        if "Translated Reading" in self.settings.output_styles:
+            styles.append("Translated Reading")
+        return styles
 
     def _translate_one(
         self,
@@ -335,6 +346,7 @@ class BatchTranscriptionWorker(QObject):
             write_txt=self.settings.write_txt,
             write_docx=self.settings.write_docx,
             source_segments=source_segments,
+            styles=self._translation_styles(),
         )
 
 

@@ -13,6 +13,7 @@ It uses `faster-whisper` locally. Audio is not uploaded to cloud transcription s
 - TXT and DOCX export
 - Optional machine English translation output, written as separate clearly labeled files
 - Mixed-language translation outputs label likely original English speech separately from translated non-English speech
+- Translated Reading output for paragraph-style machine English translation
 - Optional machine-estimated speaker tags using local pyannote diarization
 - Optional JSON sidecar with segment metadata
 - Background processing with cancellation
