@@ -1,10 +1,15 @@
 from __future__ import annotations
 
 import os
+import shutil
+import subprocess
+import tempfile
+from contextlib import contextmanager
 from pathlib import Path
+from collections.abc import Iterator
 
 from .models import SpeakerTurn, TranscriptSegment
-from .runtime import bundled_diarization_model_path
+from .runtime import bundled_binary, bundled_diarization_model_path
 
 
 DIARIZATION_MODEL_ID = "pyannote/speaker-diarization-community-1"
@@ -29,11 +34,52 @@ def run_speaker_diarization(audio_path: Path, speaker_count_label: str = "Auto")
 
     kwargs = speaker_count_kwargs(speaker_count_label)
     try:
-        output = pipeline(str(audio_path), **kwargs)
+        with diarization_audio_path(audio_path) as prepared_audio_path:
+            output = pipeline(str(prepared_audio_path), **kwargs)
     except Exception as exc:
         raise RuntimeError(f"Archive Voice could not identify speakers in this file: {exc}") from exc
 
     return normalize_speaker_turns(extract_speaker_turns(output))
+
+
+@contextmanager
+def diarization_audio_path(audio_path: Path) -> Iterator[Path]:
+    ffmpeg = resolve_binary("ffmpeg")
+    if ffmpeg is None:
+        yield audio_path
+        return
+    with tempfile.TemporaryDirectory(prefix="archive-voice-diarization-") as temp_dir:
+        prepared_path = Path(temp_dir) / f"{audio_path.stem}_diarization.wav"
+        subprocess.run(
+            [
+                ffmpeg,
+                "-y",
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-i",
+                str(audio_path),
+                "-vn",
+                "-ac",
+                "1",
+                "-ar",
+                "16000",
+                "-acodec",
+                "pcm_s16le",
+                str(prepared_path),
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        yield prepared_path
+
+
+def resolve_binary(name: str) -> str | None:
+    bundled = bundled_binary(name)
+    if bundled is not None:
+        return str(bundled)
+    return shutil.which(name)
 
 
 def diarization_model_source() -> str:
